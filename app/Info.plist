@@ -3,9 +3,9 @@
 <plist version="1.0">
 <dict>
   <key>CFBundleDevelopmentRegion</key>
-  <string>tr</string>
+  <string>en</string>
   <key>CFBundleDisplayName</key>
-  <string>ClamAV Tehdit Merkezi</string>
+  <string>ClamAV Threat Center</string>
   <key>CFBundleExecutable</key>
   <string>ClamAV Tehdit Merkezi</string>
   <key>CFBundleIdentifier</key>
@@ -15,7 +15,7 @@
   <key>CFBundleIconFile</key>
   <string>ClamAVThreatCenter.icns</string>
   <key>CFBundleName</key>
-  <string>ClamAV Tehdit Merkezi</string>
+  <string>ClamAV Threat Center</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleSignature</key>

@@ -11,7 +11,8 @@ QUARANTINE_DIR="${APP_DIR}/Quarantine"
 COORDINATION_DIR="${APP_DIR}/coordination"
 AGENT_DIR="${HOME}/Library/LaunchAgents"
 SERVICE_DIR="${HOME}/Library/Services"
-SERVICE_TARGET="${SERVICE_DIR}/ClamAV ile Tara.workflow/Contents"
+SERVICE_TARGET="${SERVICE_DIR}/Scan with ClamAV.workflow/Contents"
+LEGACY_SERVICE="${SERVICE_DIR}/ClamAV ile Tara.workflow"
 DOMAIN="gui/$(id -u)"
 LEGACY_VT_LABEL="local.neygenx.virustotal-watcher"
 LEGACY_VT_AGENT="${AGENT_DIR}/${LEGACY_VT_LABEL}.plist"
@@ -121,7 +122,7 @@ retire_legacy_virustotal() {
       return 1
     fi
   fi
-  print -r -- "Eski ayrı VirusTotal uygulaması durduruldu ve geri alınabilir biçimde saklandı: $backup_dir"
+  print -r -- "The former standalone VirusTotal application was stopped and saved for recovery: $backup_dir"
 }
 
 install_automation() {
@@ -130,15 +131,15 @@ install_automation() {
   local vt_ready=0 vt_mutated=0 attempt cleanup_done=0 rollback_in_progress=0
   local vt_script_backup vt_agent_backup retirement_backup_dir=""
   clamd_path="$(find_executable /opt/homebrew/sbin/clamd /usr/local/sbin/clamd)" || {
-    print -u2 -- 'HATA: clamd bulunamadı. Önce ClamAV kurulmalı.'
+    print -u2 -- 'ERROR: clamd was not found. Install ClamAV first.'
     return 127
   }
   clamdscan_path="$(find_executable /opt/homebrew/bin/clamdscan /usr/local/bin/clamdscan)" || {
-    print -u2 -- 'HATA: clamdscan bulunamadı. Önce ClamAV kurulmalı.'
+    print -u2 -- 'ERROR: clamdscan was not found. Install ClamAV first.'
     return 127
   }
   python_path="$(find_python)" || {
-    print -u2 -- 'HATA: VirusTotal bileşeni için Python 3.10 veya daha yenisi bulunamadı.'
+    print -u2 -- 'ERROR: Python 3.10 or later is required for VirusTotal.'
     return 127
   }
   if [[ -d /opt/homebrew/var/lib/clamav ]]; then
@@ -146,7 +147,7 @@ install_automation() {
   elif [[ -d /usr/local/var/lib/clamav ]]; then
     database_dir=/usr/local/var/lib/clamav
   else
-    print -u2 -- 'HATA: ClamAV imza veritabanı bulunamadı. freshclam çalıştırılmalı.'
+    print -u2 -- 'ERROR: ClamAV signature database not found. Run freshclam.'
     return 66
   fi
 
@@ -219,7 +220,7 @@ install_automation() {
       /usr/bin/open -g "$LEGACY_VT_APP" >/dev/null 2>&1 || rollback_failed=1
     fi
     if (( rollback_failed )); then
-      print -u2 -- 'UYARI: VirusTotal geri alma işlemi tam tamamlanamadı; bir kez daha denenecek.'
+      print -u2 -- 'WARNING: VirusTotal rollback did not finish; it will be retried.'
       vt_mutated=1
     else
       vt_mutated=0
@@ -398,6 +399,7 @@ for value in result.stdout.split():
   sed -e "s|__SCRIPT_PATH__|$SCRIPT_DIR/scan-selection.sh|g" \
     "$ROOT_DIR/quick-action/document.wflow" > "$SERVICE_TARGET/document.wflow"
   plutil -lint "$SERVICE_TARGET/Info.plist" "$SERVICE_TARGET/document.wflow" >/dev/null
+  /bin/rm -rf -- "$LEGACY_SERVICE"
 
   if [[ ! -f "$APP_DIR/scan-paths" ]]; then
     print -r -- '$HOME/Desktop' > "$APP_DIR/scan-paths"
@@ -452,7 +454,7 @@ for value in result.stdout.split():
   /System/Library/CoreServices/pbs -update >/dev/null 2>&1 || true
   "$ROOT_DIR/scripts/build-app.sh"
   if ! stop_threat_center_processes; then
-    print -u2 -- 'HATA: Eski Tehdit Merkezi arayüzü güvenli biçimde kapatılamadı; menü çubuğu güncellemesi başlatılmadı.'
+    print -u2 -- 'ERROR: The old Threat Center could not be closed safely; the menu bar update was not started.'
     return 70
   fi
 
@@ -462,7 +464,7 @@ for value in result.stdout.split():
   for name in realtime daemon update scan virustotal ui; do
     if ! wait_for_agent_unloaded "com.local.clamav.${name}"; then
       rollback_virustotal || true
-      print -u2 -- "HATA: com.local.clamav.${name} görevi güvenli biçimde durdurulamadı."
+      print -u2 -- "ERROR: com.local.clamav.${name} job could not be stopped safely."
       return 70
     fi
   done
@@ -471,7 +473,7 @@ for value in result.stdout.split():
       "com.local.clamav.${name}" \
       "$AGENT_DIR/com.local.clamav.${name}.plist"; then
       rollback_virustotal || true
-      print -u2 -- "HATA: com.local.clamav.${name} görevi başlatılamadı; önceki VirusTotal koruması geri yüklendi."
+      print -u2 -- "ERROR: com.local.clamav.${name} job could not start; previous VirusTotal protection was restored."
       return 70
     fi
   done
@@ -481,7 +483,7 @@ for value in result.stdout.split():
   fi
   if ! stop_legacy_virustotal_processes; then
     rollback_virustotal || true
-    print -u2 -- 'HATA: Eski VirusTotal izleyicisi güvenli biçimde durdurulamadı; geçiş yapılmadı.'
+    print -u2 -- 'ERROR: The old VirusTotal watcher could not be stopped safely; migration was cancelled.'
     return 70
   fi
   # Merge every time the legacy history exists. If a previous installation
@@ -492,7 +494,7 @@ for value in result.stdout.split():
       --migrate-log "$LEGACY_VT_RESULTS" \
       --log "$LOG_DIR/virustotal-results.jsonl" >/dev/null; then
       rollback_virustotal || true
-      print -u2 -- 'HATA: VirusTotal geçmişi aktarılamadı; eski uygulama korundu.'
+      print -u2 -- 'ERROR: VirusTotal history could not be migrated; the old application was preserved.'
       return 70
     fi
   fi
@@ -501,7 +503,7 @@ for value in result.stdout.split():
     com.local.clamav.virustotal \
     "$AGENT_DIR/com.local.clamav.virustotal.plist"; then
     rollback_virustotal || true
-    print -u2 -- 'HATA: Yeni VirusTotal arka plan servisi başlatılamadı; eski uygulama korundu.'
+    print -u2 -- 'ERROR: The new VirusTotal background service could not start; the old application was preserved.'
     return 70
   fi
 
@@ -514,12 +516,12 @@ for value in result.stdout.split():
   done
   if (( ! vt_ready )); then
     rollback_virustotal || true
-    print -u2 -- 'HATA: Yeni VirusTotal servisi durum bilgisi üretemedi; eski uygulama korundu.'
+    print -u2 -- 'ERROR: The new VirusTotal service did not report its status; the old application was preserved.'
     return 70
   fi
   if ! retire_legacy_virustotal; then
     rollback_virustotal || true
-    print -u2 -- 'HATA: Eski VirusTotal bileşenleri güvenli biçimde arşivlenemedi; önceki koruma geri yüklendi.'
+    print -u2 -- 'ERROR: Old VirusTotal components could not be archived safely; previous protection was restored.'
     return 70
   fi
   vt_mutated=0
@@ -527,26 +529,26 @@ for value in result.stdout.split():
   if ! bootstrap_agent_with_retry \
     com.local.clamav.ui \
     "$AGENT_DIR/com.local.clamav.ui.plist"; then
-    print -u2 -- 'UYARI: Sağ üst menü çubuğu simgesi otomatik başlatılamadı; koruma servisleri çalışmaya devam ediyor.'
+    print -u2 -- 'WARNING: The menu bar icon could not start automatically; protection services remain running.'
   fi
 
   if ! "$clamdscan_path" --config-file="$clamd_config" --ping=30:1 >/dev/null 2>&1; then
-    print -u2 -- 'UYARI: ClamAV motoru henüz yanıt vermiyor; launchd yeniden deneyecek.'
+    print -u2 -- 'WARNING: The ClamAV engine is not responding yet; launchd will retry.'
   fi
 
   cleanup_install 0
   trap - EXIT HUP INT TERM
 
   print -r -- 'ClamAV otomasyonu kuruldu.'
-  print -r -- 'Canlı koruma: Masaüstü, İndirilenler ve bağlı diskler'
-  print -r -- 'VirusTotal: görünmez arka plan servisi olarak ana kontrol paneline bağlandı'
-  print -r -- 'Menü çubuğu: sağ üstte hızlı durum ve kontrol simgesi'
-  print -r -- 'Tehdit eylemi: otomatik karantina'
-  print -r -- 'Güncelleme: her 6 saatte bir'
-  print -r -- 'Tarama: her gün 19:00 (Desktop ve Downloads)'
-  print -r -- 'Finder: sağ tık > Hızlı Eylemler > ClamAV ile Tara'
-  print -r -- 'Uygulama: ~/Applications/ClamAV Tehdit Merkezi.app'
-  print -r -- "Günlükler: $LOG_DIR"
+  print -r -- 'Real-time protection: Desktop, Downloads, and connected drives'
+  print -r -- 'VirusTotal: connected to the dashboard as a background service'
+  print -r -- 'Menu bar: quick status and controls'
+  print -r -- 'Threat action: automatic quarantine'
+  print -r -- 'Updates: every 6 hours'
+  print -r -- 'Scan: every day at 19:00 (Desktop and Downloads)'
+  print -r -- 'Finder: right click > Quick Actions > Scan with ClamAV'
+  print -r -- 'Application: ~/Applications/ClamAV Tehdit Merkezi.app'
+  print -r -- "Logs: $LOG_DIR"
 }
 
 uninstall_automation() {
@@ -554,10 +556,10 @@ uninstall_automation() {
     launchctl bootout "$DOMAIN/com.local.clamav.${name}" 2>/dev/null || true
     /bin/rm -f "$AGENT_DIR/com.local.clamav.${name}.plist"
   done
-  /bin/rm -rf -- "${SERVICE_TARGET:h}"
+  /bin/rm -rf -- "${SERVICE_TARGET:h}" "$LEGACY_SERVICE"
   /System/Library/CoreServices/pbs -flush >/dev/null 2>&1 || true
   /System/Library/CoreServices/pbs -update >/dev/null 2>&1 || true
-  print -r -- "Görevler kaldırıldı. Ayarlar ve günlükler korundu: $APP_DIR"
+  print -r -- "Jobs removed. Settings and logs retained: $APP_DIR"
 }
 
 case "${1:-install}" in
@@ -574,9 +576,9 @@ case "${1:-install}" in
           /last exit code/ && !seen_exit++ { print }
         '
       else
-        print -r -- 'kurulu değil'
+        print -r -- 'not installed'
       fi
     done
     ;;
-  *) print -u2 -- 'Kullanım: ./install.sh [install|uninstall|scan-now|update-now|status]'; exit 64 ;;
+  *) print -u2 -- 'Usage: ./install.sh [install|uninstall|scan-now|update-now|status]'; exit 64 ;;
 esac

@@ -79,7 +79,7 @@ def private_directory(path: Path) -> None:
         pass
     info = os.lstat(path)
     if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid():
-        raise PermissionError(f"Güvensiz özel dizin: {path}")
+        raise PermissionError(f"Unsafe private directory: {path}")
     os.chmod(path, 0o700)
 
 
@@ -133,7 +133,7 @@ def result_record(record: dict) -> dict:
         status = "queued"
     elif raw_status in {"taranıyor", "scanning"}:
         status = "scanning"
-    elif raw_status == "tarama-yeniden-denenecek":
+    elif raw_status in {"tarama-yeniden-denenecek", "retrying"}:
         status = "retrying"
     elif stats and not has_engine_results and not explicit_clean:
         # Older versions could persist a zeroed analysis shell before VT had
@@ -294,7 +294,7 @@ class VirusTotalRedirectHandler(urllib.request.HTTPRedirectHandler):
             raise urllib.error.HTTPError(
                 req.full_url,
                 code,
-                "VirusTotal alan dışına yönlendirme reddedildi.",
+                "Redirect outside the VirusTotal domain was rejected.",
                 headers,
                 fp,
             )
@@ -303,7 +303,7 @@ class VirusTotalRedirectHandler(urllib.request.HTTPRedirectHandler):
 
 def request(url: str, key: str, *, data: bytes | None = None, headers: dict | None = None) -> dict:
     if not is_allowed_virustotal_url(url):
-        raise ValueError("Yalnız VirusTotal API adreslerine istek gönderilebilir.")
+        raise ValueError("Requests can only be sent to VirusTotal API addresses.")
     # The public API allows four requests/minute. A file lock makes automatic
     # and manual scans share one limiter even though they are separate processes.
     private_directory(RATE_LOCK_FILE.parent)
@@ -312,7 +312,7 @@ def request(url: str, key: str, *, data: bytes | None = None, headers: dict | No
     info = os.fstat(descriptor)
     if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or info.st_nlink != 1:
         os.close(descriptor)
-        raise PermissionError("Güvensiz VirusTotal hız sınırı kilidi")
+        raise PermissionError("Unsafe VirusTotal rate limit lock")
     os.fchmod(descriptor, 0o600)
     with os.fdopen(descriptor, "r+", encoding="utf-8") as limiter:
         fcntl.flock(limiter.fileno(), fcntl.LOCK_EX)
@@ -366,7 +366,7 @@ def verified_upload_content(
             before.st_ctime_ns,
         )
         if not stat.S_ISREG(before.st_mode) or before_identity != expected_identity:
-            raise SourceChangedError("Dosya yükleme anında değişti.")
+            raise SourceChangedError("The file changed before upload.")
         digest = hashlib.sha256()
         chunks: list[bytes] = []
         while True:
@@ -385,7 +385,7 @@ def verified_upload_content(
             after.st_ctime_ns,
         )
         if after_identity != before_identity or digest.hexdigest() != expected_digest:
-            raise SourceChangedError("Dosya yükleme için okunurken değişti.")
+            raise SourceChangedError("The file has changed while being read for upload.")
         return b"".join(chunks)
     finally:
         os.close(descriptor)
@@ -406,7 +406,7 @@ def analysis_report(analysis_id: str, key: str) -> dict:
         report = request(f"{API}/analyses/{analysis_id}", key)
         if report["data"]["attributes"]["status"] == "completed": return report
         time.sleep(5)
-    raise RuntimeError("VirusTotal analizi 5 dakika içinde tamamlanmadı.")
+    raise RuntimeError("VirusTotal analysis was not completed within 5 minutes.")
 
 
 def log(path: Path, record: dict) -> None:
@@ -418,7 +418,7 @@ def log(path: Path, record: dict) -> None:
     try:
         info = os.fstat(descriptor)
         if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or info.st_nlink != 1:
-            raise PermissionError(f"Güvensiz VirusTotal günlük dosyası: {path}")
+            raise PermissionError(f"Unsafe VirusTotal log file: {path}")
         os.fchmod(descriptor, 0o600)
         fcntl.flock(descriptor, fcntl.LOCK_EX)
         end = os.lseek(descriptor, 0, os.SEEK_END)
@@ -464,7 +464,7 @@ def record_and_log(path: Path, record: dict) -> dict:
 def file_identity(path: Path) -> tuple[int, int, int, int, int, int]:
     info = os.lstat(path)
     if not stat.S_ISREG(info.st_mode):
-        raise FileNotFoundError(f"Düzenli dosya değil: {path}")
+        raise FileNotFoundError(f"Not a regular file: {path}")
     return (
         info.st_dev,
         info.st_ino,
@@ -483,7 +483,7 @@ def exclusive_lock(directory: Path, lock_file: Path):
     try:
         info = os.fstat(descriptor)
         if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or info.st_nlink != 1:
-            raise PermissionError("Güvensiz karantina kilidi")
+            raise PermissionError("Insecure quarantine lock")
         os.fchmod(descriptor, 0o600)
         fcntl.flock(descriptor, fcntl.LOCK_EX)
         yield
@@ -509,7 +509,7 @@ def read_private_json(path: Path, fallback):
     try:
         info = os.fstat(descriptor)
         if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or info.st_nlink != 1:
-            raise PermissionError(f"Güvensiz özel JSON dosyası: {path}")
+            raise PermissionError(f"Unsafe private JSON file: {path}")
         os.fchmod(descriptor, 0o600)
         with os.fdopen(descriptor, "r", encoding="utf-8") as source:
             descriptor = -1
@@ -931,7 +931,7 @@ def claim_source_in_nested_staging(source: Path, staging: Path, original: Path) 
     """Claim source by plain rename only inside a new private same-volume dir."""
     container = nested_staging_layout(staging, original)
     if container is None:
-        raise PermissionError("Geçersiz iç içe karantina staging yolu.")
+        raise PermissionError("Invalid nested quarantine staging path.")
     os.mkdir(container, 0o700)
     moved = False
     descriptor = -1
@@ -949,16 +949,16 @@ def claim_source_in_nested_staging(source: Path, staging: Path, original: Path) 
             or info.st_nlink not in {1, 2}
             or (path_info.st_dev, path_info.st_ino) != (info.st_dev, info.st_ino)
         ):
-            raise PermissionError("Güvensiz iç içe karantina staging dizini.")
+            raise PermissionError("Insecure nested quarantine staging directory.")
         os.fchmod(descriptor, 0o700)
         if os.listdir(descriptor):
-            raise FileExistsError("Karantina staging dizini boş değil.")
+            raise FileExistsError("Quarantine staging directory is not empty.")
         try:
             os.stat("payload", dir_fd=descriptor, follow_symlinks=False)
         except FileNotFoundError:
             pass
         else:
-            raise FileExistsError("Karantina staging hedefi zaten var.")
+            raise FileExistsError("Quarantine staging destination already exists.")
         os.rename(source, "payload", dst_dir_fd=descriptor)
         moved = True
     finally:
@@ -972,7 +972,7 @@ def rename_exclusive(source: Path, destination: Path) -> None:
     """Atomically rename without ever replacing an existing destination."""
     renameatx_np = getattr(ctypes.CDLL(None, use_errno=True), "renameatx_np", None)
     if renameatx_np is None:
-        raise OSError("Bu macOS sürümünde güvenli atomik yeniden adlandırma kullanılamıyor.")
+        raise OSError("Secure atomic renaming is not available on this macOS version.")
     renameatx_np.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint]
     renameatx_np.restype = ctypes.c_int
     at_fdcwd = -2
@@ -1075,7 +1075,7 @@ def verified_cross_volume_copy(
             or before.st_uid != os.getuid()
             or stable_before != stable_expected
         ):
-            raise SourceChangedError("Sahiplenilen kaynak dosya beklenen dosya değil.")
+            raise SourceChangedError("The owned source file is not the expected file.")
 
         destination_descriptor = os.open(destination, destination_flags, 0o600)
         created = os.fstat(destination_descriptor)
@@ -1103,14 +1103,14 @@ def verified_cross_volume_copy(
             after.st_mtime_ns,
         )
         if stable_after != stable_before or digest.hexdigest() != expected_digest:
-            raise SourceChangedError("Kaynak dosya diskler arası kopyalanırken değişti.")
+            raise SourceChangedError("The source file changed while copying between disks.")
         if (
             not stat.S_ISREG(destination_info.st_mode)
             or destination_info.st_uid != os.getuid()
             or destination_info.st_nlink != 1
             or destination_info.st_size != expected_identity[3]
         ):
-            raise OSError("Karantina kopyasının güvenliği doğrulanamadı.")
+            raise OSError("The security of the quarantine copy could not be verified.")
         destination_identity = (destination_info.st_dev, destination_info.st_ino)
         completed = True
     finally:
@@ -1123,14 +1123,14 @@ def verified_cross_volume_copy(
     if destination_identity is None or sha256(destination) != expected_digest:
         if destination_identity is not None:
             remove_if_same_file(destination, *destination_identity)
-        raise SourceChangedError("Karantina kopyasının SHA-256 doğrulaması başarısız oldu.")
+        raise SourceChangedError("SHA-256 validation of the quarantine copy failed.")
     path_info = os.lstat(destination)
     if (
         not stat.S_ISREG(path_info.st_mode)
         or (path_info.st_dev, path_info.st_ino) != destination_identity
     ):
         remove_if_same_file(destination, *destination_identity)
-        raise OSError("Karantina kopyasının yolu beklenmedik biçimde değişti.")
+        raise OSError("The path of the quarantine copy changed unexpectedly.")
     return destination_identity
 
 
@@ -1147,7 +1147,7 @@ def quarantine(
         except (FileNotFoundError, OSError):
             return None
         if current_identity != expected_identity or sha256(path) != expected_digest:
-            raise SourceChangedError("Dosya taramadan sonra değişti; karantinaya taşınmadı.")
+            raise SourceChangedError("The file changed after scanning; it was not moved to quarantine.")
         return quarantine_locked(path, signature, expected_identity, expected_digest)
 
 
@@ -1217,7 +1217,7 @@ def quarantine_locked(
             claim_source_in_nested_staging(path, staging, path)
         staged = True
         if not source_matches_after_rename(staging, expected_identity, expected_digest):
-            raise SourceChangedError("Karantina için sahiplenilen dosya taranan dosyayla eşleşmiyor.")
+            raise SourceChangedError("Owned file for quarantine does not match scanned file.")
 
         quarantine_device = os.lstat(QUARANTINE_DIR).st_dev
         if quarantine_device == expected_identity[0]:
@@ -1227,11 +1227,11 @@ def quarantine_locked(
             destination_identity = (destination_info.st_dev, destination_info.st_ino)
             os.chmod(destination, stat.S_IRUSR | stat.S_IWUSR)
             if not source_matches_after_rename(destination, expected_identity, expected_digest):
-                raise SourceChangedError("Karantinaya taşınan dosyanın içeriği doğrulanamadı.")
+                raise SourceChangedError("The content of the file moved to the quarantine could not be verified.")
             destination_valid = True
             if nested_staging_layout(staging, path) is not None:
                 if not cleanup_nested_staging_container_if_present(staging, path):
-                    raise OSError("Boş karantina staging dizini güvenle temizlenemedi.")
+                    raise OSError("Empty quarantine staging directory could not be cleared safely.")
             finalize_metadata()
             return destination
 
@@ -1248,17 +1248,17 @@ def quarantine_locked(
             (destination_info.st_dev, destination_info.st_ino) != destination_identity
             or sha256(destination) != expected_digest
         ):
-            raise SourceChangedError("Karantina kopyasının son yolu doğrulanamadı.")
+            raise SourceChangedError("The last path to the quarantine copy could not be verified.")
         destination_valid = True
         if not source_matches_after_rename(staging, expected_identity, expected_digest):
-            raise SourceChangedError("Kaynak dosya karantina kopyası doğrulandıktan sonra değişti.")
+            raise SourceChangedError("The source file changed after the quarantine copy was verified.")
         staging_info = os.lstat(staging)
         if not remove_if_same_file(staging, staging_info.st_dev, staging_info.st_ino):
-            raise OSError("Sahiplenilen staging dosyası güvenle kaldırılamadı.")
+            raise OSError("The owned staging file could not be safely removed.")
         staged = False
         if nested_staging_layout(staging, path) is not None:
             if not cleanup_nested_staging_container_if_present(staging, path):
-                raise OSError("Boş karantina staging dizini güvenle temizlenemedi.")
+                raise OSError("Empty quarantine staging directory could not be cleared safely.")
         finalize_metadata()
         return destination
     except Exception:
@@ -1701,8 +1701,8 @@ def browser_downloads() -> dict[str, Path]:
 
 
 def ignored(path: Path, digest: str, settings: dict) -> str | None:
-    if path.name.startswith(".") or path.suffix.lower() in IGNORED_SUFFIXES: return "geçici dosya"
-    if digest in settings["whitelist_hashes"] or path.name in settings["whitelist_names"] or path.suffix.lower() in settings["whitelist_suffixes"]: return "beyaz listede"
+    if path.name.startswith(".") or path.suffix.lower() in IGNORED_SUFFIXES: return "temporary file"
+    if digest in settings["whitelist_hashes"] or path.name in settings["whitelist_names"] or path.suffix.lower() in settings["whitelist_suffixes"]: return "allowlisted"
     return None
 
 
@@ -1744,20 +1744,20 @@ def inspect(
         **({"quarantineID": quarantine_id, "alreadyQuarantined": True} if quarantine_id else {}),
     }
     if not path.is_file():
-        return result_record({"path": str(path), "status": "error", "error": "Dosya bulunamadı.", **context})
+        return result_record({"path": str(path), "status": "error", "error": "File not found.", **context})
     # Ignore Finder/browser housekeeping before even calculating a hash.
     if path.name.startswith(".") or path.suffix.lower() in IGNORED_SUFFIXES:
-        return result_record({"path": str(path), "status": "atlandı-gizli-veya-geçici", **context})
+        return result_record({"path": str(path), "status": "skipped-hidden-or-temporary", **context})
     initial_identity = file_identity(path)
     digest = sha256(path)
     if expected_sha256 and digest.lower() != expected_sha256.lower():
-        raise SourceChangedError("Dosya, yükleme onayından sonra değişti; VirusTotal'a gönderilmedi.")
+        raise SourceChangedError("The file changed after upload confirmation; it was not sent to VirusTotal.")
     if file_identity(path) != initial_identity:
-        raise SourceChangedError("Dosya hash hesaplanırken değişti.")
+        raise SourceChangedError("The file has changed while calculating the hash.")
 
     def verify_unchanged() -> None:
         if file_identity(path) != initial_identity or sha256(path) != digest:
-            raise SourceChangedError("Dosya VirusTotal kontrolü sırasında değişti.")
+            raise SourceChangedError("File changed during VirusTotal check.")
 
     skipped = ignored(path, digest, settings)
     if skipped:
@@ -1773,7 +1773,7 @@ def inspect(
             analysis_report(str(pending["analysisID"]), key)
             report = file_report(digest, key)
             if not usable_report(report):
-                raise RuntimeError("VirusTotal dosya raporu henüz hazırlanıyor")
+                raise RuntimeError("VirusTotal file report is being prepared")
             clear_pending_analysis(digest)
             uploaded = True
         elif pending:
@@ -1783,13 +1783,13 @@ def inspect(
             except (TypeError, ValueError):
                 pending_age = 601
             if pending_age < 600:
-                raise RuntimeError("Önceki VirusTotal yüklemesi hâlâ işleniyor; yeniden yüklenmedi.")
+                raise RuntimeError("The previous VirusTotal installation is still being processed; it has not been reinstalled.")
     if report is None:
         verify_unchanged()
         if hash_only or (not force_upload and not bool(settings.get("auto_upload_unknown", False))):
             return record_and_log(log_path, {"timestamp": now(), "path": str(path), "sha256": digest, "status": "unknown", **context})
         if path.stat().st_size > MAX_PUBLIC_UPLOAD:
-            return record_and_log(log_path, {"timestamp": now(), "path": str(path), "sha256": digest, "status": "unknown", "error": "Dosya 32 MB VirusTotal genel API sınırını aşıyor.", **context})
+            return record_and_log(log_path, {"timestamp": now(), "path": str(path), "sha256": digest, "status": "unknown", "error": "File exceeds the 32 MB VirusTotal public API limit.", **context})
         if settings["upload_unknown_risky_only"] and path.suffix.lower() not in RISKY_SUFFIXES and not force_upload:
             return record_and_log(log_path, {"timestamp": now(), "path": str(path), "sha256": digest, "status": "unknown", **context})
         content = verified_upload_content(path, initial_identity, digest)
@@ -1801,7 +1801,7 @@ def inspect(
             quarantine_id=quarantine_id,
         )
         if claim == "wait":
-            raise RuntimeError("Aynı dosyanın VirusTotal yüklemesi başka bir süreçte devam ediyor.")
+            raise RuntimeError("VirusTotal installation of the same file is in progress in another process.")
         if claim == "upload":
             reservation = reserve_upload_budget(
                 log_path,
@@ -1815,11 +1815,11 @@ def inspect(
                     "path": str(path),
                     "sha256": digest,
                     "status": "error",
-                    "error": "Günlük VirusTotal yükleme sınırına ulaşıldı.",
+                    "error": "Daily VirusTotal upload limit reached.",
                     **context,
                 })
             if reservation == "existing":
-                raise RuntimeError("Bu dosya için önceki yüklemenin sonucu bekleniyor; yeniden yüklenmedi.")
+                raise RuntimeError("The result of the previous upload is pending for this file; it has not been reloaded.")
             try:
                 analysis_id = upload_content(path.name, content, key)
             except Exception as error:
@@ -1845,11 +1845,11 @@ def inspect(
                 **context,
             })
         if not analysis_id:
-            raise RuntimeError("VirusTotal analiz kimliği alınamadı.")
+            raise RuntimeError("Could not retrieve VirusTotal analysis ID.")
         analysis_report(analysis_id, key)
         report = file_report(digest, key)
         if not usable_report(report):
-            raise RuntimeError("VirusTotal analizi tamamlandı; dosya raporu henüz hazırlanıyor")
+            raise RuntimeError("VirusTotal analysis completed; file report is still being prepared")
         clear_pending_analysis(digest)
         uploaded = True
     verify_unchanged()
@@ -1880,7 +1880,7 @@ def inspect(
                 record["quarantinedTo"] = str(moved)
         except (OSError, SourceChangedError) as error:
             record["status"] = "error"
-            record["error"] = f"Tehdit bulundu ancak karantina tamamlanamadı: {error}"
+            record["error"] = f"Threat found but quarantine could not be completed: {error}"
     return record_and_log(log_path, record)
 
 
@@ -1918,8 +1918,8 @@ def watch(
     except Exception as error:
         log(log_path, {
             "time": now(),
-            "status": "izleyici-hatası",
-            "error": f"Tamamlanmamış karantina işlemi uzlaştırılamadı: {error}",
+            "status": "error",
+            "error": f"Incomplete quarantine operation could not be reconciled: {error}",
         })
         status.update(lastResult="error", lastError=str(error))
     known = folder_snapshot(folder)
@@ -1964,8 +1964,8 @@ def watch(
     # Snapshot existing browser history so installing/restarting the app never
     # retroactively scans the user's old downloads.
     browser_seen = set(browser_downloads())
-    if restored: print(f"Önceki oturumdan {len(restored)} tarama geri yüklendi.", flush=True)
-    print(f"İzleniyor: {folder}", flush=True)
+    if restored: print(f"From the previous session: {len(restored)} scans restored.", flush=True)
+    print(f"Watching: {folder}", flush=True)
 
     def enqueue(
         path: Path,
@@ -2013,7 +2013,7 @@ def watch(
                 log(log_path, {
                     "time": now(),
                     "file": str(path),
-                    "status": "taranıyor",
+                    "status": "scanning",
                     "attempt": attempts + 1,
                     "hashOnly": hash_only,
                     "firstQueuedAt": first_queued_at,
@@ -2056,7 +2056,7 @@ def watch(
                     log(log_path, {
                         "time": now(),
                         "file": str(path),
-                        "status": "tarama-yeniden-denenecek",
+                        "status": "retrying",
                         "attempt": attempt,
                         "hashOnly": hash_only,
                         "firstQueuedAt": first_queued_at,
@@ -2089,7 +2089,7 @@ def watch(
                     log(log_path, {
                         "time": now(),
                         "file": str(path),
-                        "status": "tarama-yeniden-denenecek",
+                        "status": "retrying",
                         "attempt": attempt,
                         "hashOnly": hash_only,
                         "firstQueuedAt": first_queued_at,
@@ -2118,7 +2118,7 @@ def watch(
                     log(log_path, {
                         "time": now(),
                         "file": str(path),
-                        "status": "tarama-başarısız",
+                        "status": "error",
                         "attempt": attempt,
                         "hashOnly": hash_only,
                         "firstQueuedAt": first_queued_at,
@@ -2161,14 +2161,14 @@ def watch(
                         "time": now(),
                         "file": str(path),
                         "sha256": digest,
-                        "status": "tarama-başarısız",
-                        "error": "Yüklenen dosya artık bu konumda bulunmadığı için sonuç uygulanamadı.",
+                        "status": "error",
+                        "error": "The result could not be applied because the uploaded file is no longer at this location.",
                     })
                     clear_pending_analysis(digest)
                     continue
                 enqueue(
                     path,
-                    "kuyrukta",
+                    "queued",
                     hash_only=bool(entry.get("hashOnly", False)),
                     expected_sha256=digest,
                     force_upload=bool(entry.get("source") == "quarantine-auto"),
@@ -2184,7 +2184,7 @@ def watch(
                 for quarantine_id, path, digest in ready_quarantine_jobs():
                     enqueue(
                         path,
-                        "kuyrukta",
+                        "queued",
                         expected_sha256=digest,
                         force_upload=True,
                         source="quarantine-auto",
@@ -2201,7 +2201,7 @@ def watch(
                 }
             for path, signature in current.items():
                 if path in known and known[path] == signature and scanned.get(path) != signature:
-                    if enqueue(path, "kuyrukta"):
+                    if enqueue(path, "queued"):
                         scanned[path] = signature
                 known[path] = signature
             # Browser history catches files saved outside ~/Downloads. Browser
@@ -2211,7 +2211,7 @@ def watch(
                     if download_id not in browser_seen:
                         browser_seen.add(download_id)
                         if path.is_file():
-                            enqueue(path, "tarayıcı-kuyruğunda", hash_only=True, browser_record=download_id)
+                            enqueue(path, "queued", hash_only=True, browser_record=download_id)
                 last_browser_poll = time.monotonic()
             known = {p: v for p, v in known.items() if p in current}; scanned = {p: v for p, v in scanned.items() if p in current}
             if len(seen_signatures) > 20_000:
@@ -2222,7 +2222,7 @@ def watch(
             stop_event.wait(interval)
         except KeyboardInterrupt: return
         except Exception as error:
-            log(log_path, {"time": now(), "status": "izleyici-hatası", "error": str(error)})
+            log(log_path, {"time": now(), "status": "error", "error": str(error)})
             status.update(lastResult="error", lastError=str(error))
             stop_event.wait(interval)
 
@@ -2246,7 +2246,7 @@ def migrate_log(source: Path, destination: Path) -> int:
         try:
             info = os.fstat(source_descriptor)
             if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or info.st_nlink != 1:
-                raise PermissionError(f"Güvensiz VirusTotal geçmiş dosyası: {path}")
+                raise PermissionError(f"Unsafe VirusTotal history file: {path}")
             with os.fdopen(source_descriptor, "r", encoding="utf-8", errors="replace") as input_file:
                 source_descriptor = -1
                 for line in input_file:
@@ -2314,18 +2314,18 @@ def main() -> int:
         print(json.dumps({"migrated": count, "destination": str(log_path)}, ensure_ascii=False))
         return 0
     if args.hash_only and args.force_upload:
-        parser.error("--hash-only ve --force-upload birlikte kullanılamaz.")
+        parser.error("--hash-only and --force-upload cannot be used together.")
     if args.expected_sha256 and (
         len(args.expected_sha256) != 64
         or any(character not in "0123456789abcdefABCDEF" for character in args.expected_sha256)
     ):
-        parser.error("--expected-sha256 64 karakterlik SHA-256 olmalıdır.")
+        parser.error("--expected-sha256 must be a 64-character SHA-256 hash.")
 
     settings = config()
     key = os.environ.get("VIRUSTOTAL_API_KEY") or local_api_key()
     if args.file:
         if not key:
-            print(json.dumps(result_record({"path": str(args.file.expanduser()), "status": "error", "error": "VirusTotal API anahtarı bulunamadı."}), ensure_ascii=False))
+            print(json.dumps(result_record({"path": str(args.file.expanduser()), "status": "error", "error": "VirusTotal API key not found."}), ensure_ascii=False))
             return 78
         try:
             result = inspect(
@@ -2347,7 +2347,7 @@ def main() -> int:
     folder = args.folder.expanduser()
     status = StatusWriter([str(folder)], key is not None, settings)
     if not key:
-        status.update(running=False, lastResult="error", lastError="VirusTotal API anahtarı bulunamadı.")
+        status.update(running=False, lastResult="error", lastError="VirusTotal API key not found.")
         return 0
     stop_event = threading.Event()
 

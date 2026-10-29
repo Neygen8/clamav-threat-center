@@ -30,12 +30,12 @@ if [[ -n "$CLAMDSCAN" && -f "$CLAMD_CONFIG" ]] && \
    "$CLAMDSCAN" --config-file="$CLAMD_CONFIG" --ping=2:1 >/dev/null 2>&1; then
   use_daemon=true
 elif [[ -z "$CLAMSCAN" ]]; then
-  notify_user "ClamAV tarama hatası" "ClamAV tarama motoru bulunamadı."
+  notify_user "ClamAV scan error" "ClamAV scan engine not found."
   exit 127
 fi
 
 if (( $# == 0 )); then
-  notify_user "ClamAV tarama hatası" "Dosya veya klasör seçilmedi."
+  notify_user "ClamAV scan error" "No files or folders selected."
   exit 64
 fi
 
@@ -46,18 +46,18 @@ for selected_path in "$@"; do
 done
 
 if (( ${#selected_paths[@]} == 0 )); then
-  notify_user "ClamAV tarama hatası" "Seçilen öğelere erişilemedi."
+  notify_user "ClamAV scan error" "Selected items could not be accessed."
   exit 66
 fi
 
 if ! mkdir "$LOCK_DIR" 2>/dev/null; then
-  notify_user "ClamAV tarama bekliyor" "Başka bir tarama zaten çalışıyor."
+  notify_user "ClamAV scan waiting" "Another scan is already running."
   exit 75
 fi
 trap 'rmdir "$LOCK_DIR" 2>/dev/null || true' EXIT HUP INT TERM
 
 if [[ ! -x "$PROGRESS_RUNNER" ]]; then
-  notify_user "ClamAV tarama hatası" "Tarama ilerleme bileşeni bulunamadı."
+  notify_user "ClamAV scan error" "Scan progress component not found."
   exit 127
 fi
 
@@ -67,7 +67,7 @@ if [[ "$use_daemon" == true ]]; then
     --scanner "$CLAMDSCAN" \
     --clamd-config "$CLAMD_CONFIG" \
     --log "$LOG_FILE" \
-    --title "Seçili öğe taraması" \
+    --title "Selected items scan" \
     --source selection \
     -- "${selected_paths[@]}"
 else
@@ -75,7 +75,7 @@ else
     --engine clamscan \
     --scanner "$CLAMSCAN" \
     --log "$LOG_FILE" \
-    --title "Seçili öğe taraması" \
+    --title "Selected items scan" \
     --source selection \
     -- "${selected_paths[@]}"
 fi
@@ -83,16 +83,16 @@ result=$?
 
 case "$result" in
   0)
-    notify_user "ClamAV: Temiz" "${#selected_paths[@]} öğede tehdit bulunmadı."
+    notify_user "ClamAV: Clean" "${#selected_paths[@]} items contained no threats."
     ;;
   1)
     infected_count="$(awk -F: '/^Infected files:/{gsub(/[[:space:]]/, "", $2); print $2}' "$LOG_FILE" | tail -n 1)"
-    [[ -z "$infected_count" ]] && infected_count="bir veya daha fazla"
-    notify_user "ClamAV: Tehdit bulundu" "Tehdit sayısı: ${infected_count}. Tarama günlüğü açılıyor."
+    [[ -z "$infected_count" ]] && infected_count="one or more"
+    notify_user "ClamAV: Threat found" "Threat count: ${infected_count}. Opening scan log."
     /usr/bin/open -R "$LOG_FILE" >/dev/null 2>&1 || true
     ;;
   *)
-    notify_user "ClamAV tarama hatası" "Tarama tamamlanamadı. Günlük açılıyor."
+    notify_user "ClamAV scan error" "Scan failed. Opening log."
     /usr/bin/open -R "$LOG_FILE" >/dev/null 2>&1 || true
     ;;
 esac

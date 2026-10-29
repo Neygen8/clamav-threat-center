@@ -11,7 +11,7 @@ find "$LOG_DIR" -type f -name '*.log' -mtime +30 -delete 2>/dev/null || true
 
 FRESHCLAM="$(command -v freshclam 2>/dev/null || true)"
 if [[ -z "$FRESHCLAM" ]]; then
-  print -r -- "$(date '+%F %T') HATA: freshclam bulunamadı." >> "$LOG_DIR/update-error.log"
+  print -r -- "$(date '+%F %T') ERROR: freshclam not found." >> "$LOG_DIR/update-error.log"
   exit 127
 fi
 

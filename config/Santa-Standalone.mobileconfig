@@ -3,11 +3,11 @@
 <plist version="1.0">
 <dict>
   <key>PayloadDisplayName</key>
-  <string>ClamAV Güvenlik Yığını — Santa Sessiz İzleme</string>
+  <string>ClamAV Security Stack — Santa Silent Monitoring</string>
   <key>PayloadDescription</key>
-  <string>Santa'yı kişisel Mac için sessiz İzleme modunda çalıştırır; bilinmeyen çalıştırmaları kaydeder ve bozuk imzaları engeller.</string>
+  <string>Runs Santa in silent monitoring mode on a personal Mac; logs unknown executions and blocks invalid signatures.</string>
   <key>PayloadOrganization</key>
-  <string>Yerel ClamAV Güvenlik Yığını</string>
+  <string>Local ClamAV Security Stack</string>
   <key>PayloadEnabled</key>
   <true/>
   <key>PayloadType</key>
@@ -42,11 +42,11 @@
       <key>IgnoreOtherEndpointSecurityClients</key>
       <false/>
       <key>UnknownBlockMessage</key>
-      <string>Bu program için henüz bir güvenlik kuralı yok. Yalnızca kaynağına güveniyorsanız çalıştırın.</string>
+      <string>There is no security rule for this program yet. Run it only if you trust its source.</string>
       <key>BannedBlockMessage</key>
-      <string>Bu program güvenlik kuralı tarafından engellendi.</string>
+      <string>This program was blocked by a security rule.</string>
       <key>AboutText</key>
-      <string>Santa, ClamAV Güvenlik Merkezi'nin sessiz program görünürlüğü ve bozuk imza korumasıdır.</string>
+      <string>Santa provides silent execution visibility and invalid signature protection for ClamAV Security Center.</string>
       <key>Telemetry</key>
       <array>
         <string>Execution</string>
@@ -141,7 +141,7 @@
         </dict>
       </array>
       <key>PayloadDisplayName</key>
-      <string>Santa Sessiz İzleme Koruması</string>
+      <string>Santa Silent Monitoring Protection</string>
       <key>PayloadIdentifier</key>
       <string>com.northpolesec.santa.CF09FBF8-E2A3-4E62-9F3C-831110A076A6</string>
       <key>PayloadUUID</key>

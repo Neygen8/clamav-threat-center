@@ -39,7 +39,7 @@ def ensure_private_directory(path: Path) -> None:
     path.mkdir(parents=True, exist_ok=True, mode=0o700)
     info = os.lstat(path)
     if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid():
-        raise PermissionError(f"Güvensiz durum dizini: {path}")
+        raise PermissionError(f"Unsafe state directory: {path}")
     os.chmod(path, 0o700)
 
 
@@ -91,7 +91,7 @@ class Progress:
             "estimatedSecondsRemaining": None,
             "filesPerSecond": 0.0,
             "percent": 0.0,
-            "message": "Taranacak dosyalar sayılıyor…",
+            "message": "Counting files to scan…",
         }
         self.last_write = 0.0
         self.scan_started = 0.0
@@ -113,7 +113,7 @@ class Progress:
             "totalBytes": total_bytes,
             "errorCount": count_errors,
             "excludedCount": excluded,
-            "message": "ClamAV dosyaları tarıyor…",
+            "message": "ClamAV is scanning files…",
         })
         self.write(force=True)
 
@@ -142,13 +142,13 @@ class Progress:
             self.state["scannedFiles"] = max(int(self.state["scannedFiles"]), total)
             self.state["percent"] = 100.0
             self.state["phase"] = "completed"
-            self.state["message"] = "Tarama tamamlandı."
+            self.state["message"] = "Scan completed."
         elif return_code in (130, -signal.SIGINT, -signal.SIGTERM):
             self.state["phase"] = "cancelled"
-            self.state["message"] = "Tarama durduruldu."
+            self.state["message"] = "Scan stopped."
         else:
             self.state["phase"] = "error"
-            self.state["message"] = "Tarama tamamlanamadı."
+            self.state["message"] = "Scan failed."
         self.state.update({
             "running": False,
             "finishedAt": now(),
@@ -257,7 +257,7 @@ def build_manifest(paths: list[Path], progress: Progress, manifest: Path) -> tup
                         "errorCount": errors,
                         "excludedCount": excluded,
                         "currentPath": str(root_path),
-                        "message": f"{total_files:,} dosya bulundu; sayım sürüyor…",
+                        "message": f"{total_files:,} files found; counting continues…",
                     })
                     progress.write(force=True)
                     last_update = time.monotonic()
@@ -329,9 +329,9 @@ def main() -> int:
     os.chmod(args.log.parent, 0o700)
     with args.log.open("w", encoding="utf-8") as log_file:
         os.chmod(args.log, 0o600)
-        log_file.write(f"Başlangıç: {datetime.now().astimezone().strftime('%Y-%m-%d %H:%M:%S')}\n")
-        log_file.write(f"Klasörler: {' '.join(map(str, paths))}\n")
-        log_file.write(f"Motor: {'clamd (bellekte hazır)' if args.engine == 'clamd' else 'clamscan (yedek yöntem)'}\n")
+        log_file.write(f"Start: {datetime.now().astimezone().strftime('%Y-%m-%d %H:%M:%S')}\n")
+        log_file.write(f"Folders: {' '.join(map(str, paths))}\n")
+        log_file.write(f"Engine: {'clamd (ready in memory)' if args.engine == 'clamd' else 'clamscan (fallback)'}\n")
         log_file.flush()
         try:
             total_files, total_bytes, count_errors, excluded = build_manifest(paths, progress, manifest)
@@ -364,10 +364,10 @@ def main() -> int:
                         log_file.flush()
                 return_code = process.wait()
         except Exception as error:
-            log_file.write(f"İlerleme izleyicisi hatası: {error}\n")
+            log_file.write(f"Progress monitor error: {error}\n")
             log_file.flush()
             return_code = 2
-        log_file.write(f"Bitiş: {datetime.now().astimezone().strftime('%Y-%m-%d %H:%M:%S')}\n")
+        log_file.write(f"End: {datetime.now().astimezone().strftime('%Y-%m-%d %H:%M:%S')}\n")
         log_file.flush()
     progress.finish(return_code)
     try:

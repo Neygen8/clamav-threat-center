@@ -12,7 +12,7 @@ This project combines ClamAV scanning, live file monitoring, a quarantine and Vi
 - The bundled schedule updates signatures every six hours and scans Desktop and Downloads daily at 19:00.
 - The VirusTotal service watches Downloads and reports to the same panel. It checks SHA-256 hashes first; file contents are uploaded only with explicit approval or when automatic quarantine analysis is enabled in the user's configuration.
 
-The application is installed in `~/Applications` and appears in the menu bar. Closing the interface leaves the separate background services running. The Finder quick action currently appears as **ClamAV ile Tara**.
+The application is installed in `~/Applications` and appears in the menu bar. Closing the interface leaves the separate background services running. The Finder quick action currently appears as **Scan with ClamAV**.
 
 > Live monitoring scans files after they are written. It does not replace an Endpoint Security execution blocker and cannot guarantee that every file is stopped before it is opened.
 

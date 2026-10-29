@@ -43,7 +43,7 @@ struct ScanRecord: Identifiable {
     }
 
     var statusText: String {
-        if infectedFiles > 0 { return "Tehdit bulundu" }
+        if infectedFiles > 0 { return "Threat found" }
         if warningCount > 0 { return "Warning" }
         return "Clean"
     }
@@ -177,7 +177,7 @@ struct RealtimeProtectionEvent: Decodable, Identifiable {
         case "error": return "Scan failed"
         case "skipped": return "Skipped"
         case "recovery": return "Recovery scan"
-        default: return "Kontrol edildi"
+        default: return "Checked"
         }
     }
 
@@ -315,7 +315,7 @@ struct VirusTotalResult: Decodable, Identifiable {
 
     var fileName: String {
         let name = URL(fileURLWithPath: path).lastPathComponent
-        return name.isEmpty ? "Dosya" : name
+        return name.isEmpty ? "File" : name
     }
 
     var riskCount: Int { malicious + suspicious }
@@ -328,11 +328,11 @@ struct VirusTotalResult: Decodable, Identifiable {
         switch status {
         case "known-clean", "uploaded-clean", "clean": return "Clean"
         case "known-warning", "uploaded-warning", "warning", "inceleme-gerekli-tekil-uyarı": return "Review needed"
-        case "known-malicious", "uploaded-malicious", "malicious", "quarantined": return "Tehdit bulundu"
+        case "known-malicious", "uploaded-malicious", "malicious", "quarantined": return "Threat found"
         case "unknown", "bilinmiyor-yüklenmedi-gizlilik": return "Unknown to VirusTotal"
         case "queued", "kuyrukta", "tarayıcı-kuyruğunda": return "Queued"
         case "scanning", "taranıyor": return "Checking"
-        case "retrying", "tarama-yeniden-denenecek": return "Otomatik yeniden denenecek"
+        case "retrying", "tarama-yeniden-denenecek": return "Will retry automatically"
         case "error", "tarama-başarısız": return "Check failed"
         default:
             if status.hasPrefix("karantina-hatası") { return "Could not move to quarantine" }
@@ -746,7 +746,7 @@ final class ThreatStore: ObservableObject {
     }
 
     func restartClamAVDaemon() {
-        restartOwnedService(label: "com.local.clamav.daemon", displayName: "ClamAV tarama motoru")
+        restartOwnedService(label: "com.local.clamav.daemon", displayName: "ClamAV scan engine")
     }
 
     func restartVirusTotalService() {
@@ -775,7 +775,7 @@ final class ThreatStore: ObservableObject {
         process.standardError = output
 
         setOwnedServiceRestarting(label, true)
-        let startingMessage = "\(displayName) yeniden starting…"
+        let startingMessage = "\(displayName) restarting…"
         ownedServiceMessages[label] = startingMessage
         if label == "com.local.clamav.realtime" { protectionCommandResult = startingMessage }
 
@@ -993,7 +993,7 @@ final class ThreatStore: ObservableObject {
 
         isCommandRunning = true
         activeCommand = title
-        commandResult = "\(title) başlatıldı…"
+        commandResult = "\(title) started…"
 
         do {
             try process.run()
@@ -2617,7 +2617,7 @@ final class ThreatStore: ObservableObject {
 
         for url in candidates.prefix(5) {
             guard let contents = try? String(contentsOf: url, encoding: .utf8),
-                  !contents.contains("Bitiş:") else { continue }
+                  !contents.contains("Bitiş:"), !contents.contains("End:") else { continue }
             let start = parseLegacyScanStart(in: contents)
                 ?? (try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate)
                 ?? Date()
@@ -2630,8 +2630,9 @@ final class ThreatStore: ObservableObject {
     }
 
     nonisolated private func parseLegacyScanStart(in text: String) -> Date? {
-        guard let line = text.split(separator: "\n").first(where: { $0.hasPrefix("Başlangıç:") }) else { return nil }
-        let value = line.dropFirst("Başlangıç:".count).trimmingCharacters(in: .whitespaces)
+        guard let line = text.split(separator: "\n").first(where: { $0.hasPrefix("Başlangıç:") || $0.hasPrefix("Start:") }) else { return nil }
+        let prefix = line.hasPrefix("Start:") ? "Start:" : "Başlangıç:"
+        let value = line.dropFirst(prefix.count).trimmingCharacters(in: .whitespaces)
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.timeZone = .current
@@ -2767,9 +2768,9 @@ final class ThreatStore: ObservableObject {
     private func manualVirusTotalMessage(for result: VirusTotalResult) -> String {
         if result.riskCount > 0 {
             if result.quarantinedTo != nil {
-                return "\(result.fileName) için \(result.riskCount) warnings found; file moved to quarantine."
+                return "\(result.fileName): \(result.riskCount) warnings found; file moved to quarantine."
             }
-            return "\(result.fileName) için \(result.riskCount) security engines reported warnings."
+            return "\(result.fileName): \(result.riskCount) security engines reported warnings."
         }
         if result.isUnknown {
             return "The file is still unknown in VirusTotal; the upload result may appear later."
@@ -3544,7 +3545,7 @@ final class ThreatStore: ObservableObject {
             print("TEST OK: app staging race, metadata state, restore and delete integrity checks are secure.")
             return 0
         } catch {
-            FileHandle.standardError.write(Data("TEST HATA: \(error.localizedDescription)\n".utf8))
+            FileHandle.standardError.write(Data("TEST ERROR: \(error.localizedDescription)\n".utf8))
             return 1
         }
     }
@@ -3556,10 +3557,10 @@ enum SidebarItem: String, CaseIterable, Identifiable {
     case overview = "Kontrol Paneli"
     case protection = "Live Protection"
     case virusTotal = "VirusTotal"
-    case commands = "Komut Merkezi"
-    case threats = "Tehditler"
-    case quarantine = "Karantina"
-    case scans = "Taramalar"
+    case commands = "Command Center"
+    case threats = "Threats"
+    case quarantine = "Quarantine"
+    case scans = "Scans"
 
     var id: String { rawValue }
 
@@ -3762,7 +3763,7 @@ private struct ThreatCenterMenuBarView: View {
             return MenuServiceSummary(name: "Scan", state: "Counting files", health: .checking)
         }
         if let percent = progress.percent, progress.phase == "scanning" {
-            return MenuServiceSummary(name: "Scan", state: "%\(Int(percent.rounded(.down))) tamamlandı", health: .checking)
+            return MenuServiceSummary(name: "Scan", state: "\(Int(percent.rounded(.down)))% complete", health: .checking)
         }
         return MenuServiceSummary(name: "Scan", state: "Running", health: .checking)
     }
@@ -3849,7 +3850,7 @@ private func bringExistingControlPanelToFront() -> Bool {
     let application = NSApplication.shared
     let windows = application.windows.filter { $0.canBecomeMain && !($0 is NSPanel) }
     let window = windows.first(where: {
-        $0.title == "ClamAV Tehdit Merkezi" || $0.title == "Tehdit Merkezi"
+        $0.title == "ClamAV Threat Center" || $0.title == "ClamAV Tehdit Merkezi" || $0.title == "Tehdit Merkezi"
     }) ?? windows.first
     guard let window else { return false }
     if window.isMiniaturized { window.deminiaturize(nil) }
@@ -3864,10 +3865,10 @@ struct ContentView: View {
     var body: some View {
         NavigationSplitView {
             List(selection: $selection) {
-                Section("GENEL") {
+                Section("GENERAL") {
                     SidebarItemRow(item: .overview, badge: nil)
                 }
-                Section("KORUMA") {
+                Section("PROTECTION") {
                     SidebarItemRow(item: .protection, badge: nil)
                     SidebarItemRow(item: .virusTotal, badge: nil)
                 }
@@ -3875,13 +3876,13 @@ struct ContentView: View {
                     SidebarItemRow(item: .commands, badge: nil)
                     SidebarItemRow(item: .scans, badge: nil)
                 }
-                Section("KAYITLAR") {
+                Section("RECORDS") {
                     SidebarItemRow(item: .threats, badge: store.threats.filter(\.exists).count)
                     SidebarItemRow(item: .quarantine, badge: store.quarantineItems.count)
                 }
             }
             .listStyle(.sidebar)
-            .navigationTitle("Tehdit Merkezi")
+            .navigationTitle("Threat Center")
             .navigationSplitViewColumnWidth(min: 205, ideal: 225)
             .safeAreaInset(edge: .bottom) {
                 HStack(spacing: 9) {
@@ -3889,7 +3890,7 @@ struct ContentView: View {
                         .fill(store.isRealtimeProtectionActive ? Color.green : Color.orange)
                         .frame(width: 8, height: 8)
                     VStack(alignment: .leading, spacing: 1) {
-                        Text(store.isRealtimeProtectionActive ? "Koruma aktif" : "Dikkat gerekiyor")
+                        Text(store.isRealtimeProtectionActive ? "Protection active" : "Attention needed")
                             .font(.caption.bold())
                         Text("Last updated \(store.lastRefresh.formatted(date: .omitted, time: .shortened))")
                             .font(.caption2)
@@ -3957,7 +3958,7 @@ struct OverviewView: View {
 
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
                     DashboardServiceCard(
-                        title: "ClamAV tarama motoru",
+                        title: "ClamAV scan engine",
                         status: store.isClamAVDaemonReady ? "Ready" : "Not responding",
                         detail: "Checks file contents against local virus signatures.",
                         icon: "gearshape.2.fill",
@@ -3996,7 +3997,7 @@ struct OverviewView: View {
                         color: store.isRealtimeProtectionActive ? .green : .orange
                     )
                     MetricCard(
-                        title: "Aktif tehdit",
+                        title: "Active threat",
                         value: activeThreats.count.formatted(),
                         icon: "exclamationmark.shield.fill",
                         color: activeThreats.isEmpty ? .green : .red
@@ -4008,7 +4009,7 @@ struct OverviewView: View {
                         color: .indigo
                     )
                     MetricCard(
-                        title: "Son tarama",
+                        title: "Last scan",
                         value: latestScan.map { $0.date.formatted(date: .omitted, time: .shortened) } ?? "—",
                         icon: "clock.fill",
                         color: .blue
@@ -4035,7 +4036,7 @@ struct OverviewView: View {
                     }
                 }
 
-                SecuritySectionHeader("Son tehditler") {
+                SecuritySectionHeader("Recent threats") {
                     Button("View All") { selection = .threats }
                         .buttonStyle(.link)
                 }
@@ -4054,7 +4055,7 @@ struct OverviewView: View {
                     }
                 }
 
-                Text("ClamAV \(store.engineVersion) • Son yenileme \(store.lastRefresh.formatted(date: .omitted, time: .standard))")
+                Text("ClamAV \(store.engineVersion) • Last refreshed \(store.lastRefresh.formatted(date: .omitted, time: .standard))")
                     .font(.caption)
                     .foregroundStyle(.tertiary)
             }
@@ -4315,7 +4316,7 @@ struct LiveProtectionView: View {
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                         if let heartbeat = store.realtimeStatus?.heartbeatAt {
-                            Text("Son haber: \(relativeText(for: heartbeat))")
+                            Text("Last heartbeat: \(relativeText(for: heartbeat))")
                                 .font(.caption)
                                 .foregroundStyle(.tertiary)
                         }
@@ -4340,7 +4341,7 @@ struct LiveProtectionView: View {
                     .background(Color.orange.opacity(0.10), in: RoundedRectangle(cornerRadius: 8))
                 } else if let lossCount = store.realtimeStatus?.eventLossCount, lossCount > 0 {
                     Label(
-                        "Bu oturumda \(lossCount) olay akışı kesintisi algılandı; son telafide \(store.realtimeStatus?.reconciliationQueuedCount ?? 0) dosya sıraya alındı.",
+                        "\(lossCount) event stream interruptions were detected this session; \(store.realtimeStatus?.reconciliationQueuedCount ?? 0) files were queued during the latest recovery.",
                         systemImage: "arrow.clockwise.circle.fill"
                     )
                     .font(.subheadline)
@@ -4361,13 +4362,13 @@ struct LiveProtectionView: View {
 
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 4), spacing: 12) {
                     MetricCard(
-                        title: "Bu oturumda taranan",
+                        title: "Scanned this session",
                         value: store.realtimeStatus?.scannedCount.formatted() ?? "—",
                         icon: "doc.text.magnifyingglass",
                         color: .blue
                     )
                     MetricCard(
-                        title: "Yakalanan tehdit",
+                        title: "Detected threat",
                         value: store.realtimeStatus?.threatCount.formatted() ?? "—",
                         icon: "exclamationmark.shield.fill",
                         color: (store.realtimeStatus?.threatCount ?? 0) > 0 ? .red : .green
@@ -4379,7 +4380,7 @@ struct LiveProtectionView: View {
                         color: .indigo
                     )
                     MetricCard(
-                        title: "Tarama motoru",
+                        title: "Scan engine",
                         value: store.realtimeStatus?.daemonConnected == true ? "Ready" : "Not connected",
                         icon: "gearshape.2.fill",
                         color: store.realtimeStatus?.daemonConnected == true ? .green : .orange
@@ -4412,7 +4413,7 @@ struct LiveProtectionView: View {
                 HStack(spacing: 10) {
                     Image(systemName: "magnifyingglass")
                         .foregroundStyle(.secondary)
-                    TextField("Dosya, yol veya imza ara", text: $searchText)
+                    TextField("Search file, path or signature", text: $searchText)
                         .textFieldStyle(.plain)
                     if !searchText.isEmpty {
                         Button {
@@ -4496,7 +4497,7 @@ struct LiveProtectionView: View {
     }
 
     private func locationName(for path: String) -> String {
-        if path == "/Volumes" { return "USB ve harici diskler" }
+        if path == "/Volumes" { return "USB and external drives" }
         switch URL(fileURLWithPath: path).lastPathComponent {
         case "Desktop": return "Desktop"
         case "Downloads": return "Downloads"
@@ -4523,7 +4524,7 @@ struct VirusTotalView: View {
     }
 
     private var statusTitle: String {
-        guard let status = store.virusTotalStatus else { return "VirusTotal durumu bekleniyor" }
+        guard let status = store.virusTotalStatus else { return "Waiting for VirusTotal status" }
         if !status.apiKeyConfigured { return "VirusTotal API key required" }
         return store.isVirusTotalActive ? "VirusTotal protection is running" : "VirusTotal protection is not responding"
     }
@@ -4592,7 +4593,7 @@ struct VirusTotalView: View {
                             .foregroundStyle(.secondary)
                         if let heartbeat = store.virusTotalStatus?.heartbeatAt,
                            heartbeat != .distantPast {
-                            Text("Son haber: \(relativeText(for: heartbeat))")
+                            Text("Last heartbeat: \(relativeText(for: heartbeat))")
                                 .font(.caption)
                                 .foregroundStyle(.tertiary)
                         }
@@ -4642,7 +4643,7 @@ struct VirusTotalView: View {
                 manualScanCard
 
                 SecuritySectionHeader("Recent VirusTotal results") {
-                    Text("Son \(min(store.virusTotalResults.count, 50)) records")
+                    Text("Last \(min(store.virusTotalResults.count, 50)) records")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -4785,12 +4786,12 @@ struct VirusTotalResultRow: View {
                             .foregroundStyle(.indigo)
                     }
                     if result.quarantinedTo != nil {
-                        Label("Karantinada", systemImage: "lock.shield.fill")
+                        Label("In quarantine", systemImage: "lock.shield.fill")
                             .font(.caption)
                             .foregroundStyle(.orange)
                     }
                     if result.source == "quarantine-auto" {
-                        Label("Karantinadan otomatik", systemImage: "arrow.triangle.2.circlepath")
+                        Label("Automatic from quarantine", systemImage: "arrow.triangle.2.circlepath")
                             .font(.caption)
                             .foregroundStyle(.blue)
                     }
@@ -4948,7 +4949,7 @@ struct ThreatsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             SecurityPageHeader(
-                title: "Tehditler",
+                title: "Threats",
                 subtitle: "Files detected by ClamAV; no files are deleted automatically.",
                 icon: "exclamationmark.triangle.fill",
                 tint: .red
@@ -4958,7 +4959,7 @@ struct ThreatsView: View {
                 HStack(spacing: 8) {
                     Image(systemName: "magnifyingglass")
                         .foregroundStyle(.secondary)
-                    TextField("Dosya yolu veya imza ara", text: $searchText)
+                    TextField("Search file path or signature", text: $searchText)
                         .textFieldStyle(.plain)
                     if !searchText.isEmpty {
                         Button {
@@ -4981,7 +4982,7 @@ struct ThreatsView: View {
                     title: store.threats.isEmpty ? "No threats found" : "No matching threats",
                     message: store.threats.isEmpty
                         ? "No threats were recorded in scan logs."
-                        : "Aramaya dosya yolu veya imza yazarak tekrar bak."
+                        : "Search again using a file path or signature."
                 )
             } else {
                 ScrollView {
@@ -5008,7 +5009,7 @@ struct ThreatsView: View {
             ),
             titleVisibility: .visible
         ) {
-            Button("Karantinaya Al") {
+            Button("Move to Quarantine") {
                 if let threat = pendingQuarantine {
                     isOperationRunning = true
                     Task {
@@ -5066,7 +5067,7 @@ struct ThreatRow: View {
                 Text("Last seen: \(threat.lastSeen.formatted(date: .abbreviated, time: .shortened))")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                Text("\(threat.detectionCount) kez bulundu")
+                Text("\(threat.detectionCount) detections")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -5074,7 +5075,7 @@ struct ThreatRow: View {
                 Button("Show in Finder", action: reveal)
                     .buttonStyle(.bordered)
                 if let quarantine {
-                    Button("Karantinaya Al", action: quarantine)
+                    Button("Move to Quarantine", action: quarantine)
                         .buttonStyle(.borderedProminent)
                         .tint(.orange)
                 }
@@ -5116,7 +5117,7 @@ struct ActiveScanProgressCard: View {
 
     private var countText: String? {
         guard status.totalFiles > 0 else { return nil }
-        return "\(status.scannedFiles.formatted()) / \(status.totalFiles.formatted()) dosya"
+        return "\(status.scannedFiles.formatted()) / \(status.totalFiles.formatted()) files"
     }
 
     var body: some View {
@@ -5161,7 +5162,7 @@ struct ActiveScanProgressCard: View {
             if status.infectedFiles > 0 || status.errorCount > 0 {
                 HStack(spacing: 12) {
                     if status.infectedFiles > 0 {
-                        Label("\(status.infectedFiles) tehdit", systemImage: "exclamationmark.shield.fill")
+                        Label("\(status.infectedFiles) threats", systemImage: "exclamationmark.shield.fill")
                             .foregroundStyle(.red)
                     }
                     if status.errorCount > 0 {
@@ -5213,7 +5214,7 @@ struct CommandCenterView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
                 SecurityPageHeader(
-                    title: "Komut Merkezi",
+                    title: "Command Center",
                     subtitle: "Run ClamAV scans and updates.",
                     icon: "play.circle.fill",
                     tint: .blue
@@ -5266,7 +5267,7 @@ struct CommandCenterView: View {
                 }
 
                 VStack(alignment: .leading, spacing: 8) {
-                    Label("Son komut sonucu", systemImage: "terminal.fill")
+                    Label("Last command result", systemImage: "terminal.fill")
                         .font(.headline)
                     Text(store.commandResult)
                         .foregroundStyle(.secondary)
@@ -5349,7 +5350,7 @@ struct QuarantineView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             SecurityPageHeader(
-                title: "Karantina",
+                title: "Quarantine",
                 subtitle: "Isolated files are kept here so they cannot be executed.",
                 icon: "lock.shield.fill",
                 tint: .orange
@@ -5359,7 +5360,7 @@ struct QuarantineView: View {
                 HStack(spacing: 8) {
                     Image(systemName: "magnifyingglass")
                         .foregroundStyle(.secondary)
-                    TextField("Dosya, konum veya imza ara", text: $searchText)
+                    TextField("Search file, location or signature", text: $searchText)
                         .textFieldStyle(.plain)
                     if !searchText.isEmpty {
                         Button {
@@ -5382,7 +5383,7 @@ struct QuarantineView: View {
                     title: store.quarantineItems.isEmpty ? "Quarantine is empty" : "No matching records",
                     message: store.quarantineItems.isEmpty
                         ? "No files have been quarantined yet."
-                        : "Aramaya dosya, konum veya imza yazarak tekrar bak."
+                        : "Search again using a file, location or signature."
                 )
             } else {
                 ScrollView {
@@ -5507,7 +5508,7 @@ struct ScansView: View {
             }
 
             Table(store.scans) {
-                TableColumn("Durum") { scan in
+                TableColumn("Status") { scan in
                     Label(scan.statusText, systemImage: scan.infectedFiles > 0 ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
                         .foregroundStyle(scan.statusColor)
                 }
@@ -5521,7 +5522,7 @@ struct ScansView: View {
                 TableColumn("Type") { scan in Text(scan.source) }
                     .width(min: 130, ideal: 160)
 
-                TableColumn("Taranan") { scan in Text(scan.scannedFiles.formatted()) }
+                TableColumn("Scanned") { scan in Text(scan.scannedFiles.formatted()) }
                     .width(min: 80, ideal: 90)
 
                 TableColumn("Threat") { scan in Text(scan.infectedFiles.formatted()) }
@@ -5669,14 +5670,14 @@ struct ClamAVThreatCenterApp: App {
     }
 
     private var menuBarAccessibilityLabel: String {
-        if hasActiveThreat { return "ClamAV Tehdit Merkezi, ilgilenilmesi gereken tehdit var" }
+        if hasActiveThreat { return "ClamAV Threat Center: a threat requires attention" }
         if hasServiceWarning { return "ClamAV Threat Center: a protection service is not responding" }
         if isCheckingServices { return "ClamAV Threat Center: checking protection status" }
         return "ClamAV Threat Center: protection services are running"
     }
 
     var body: some Scene {
-        Window("ClamAV Tehdit Merkezi", id: "control-panel") {
+        Window("ClamAV Threat Center", id: "control-panel") {
             ContentView(store: store)
         }
         .windowStyle(.titleBar)
@@ -5694,7 +5695,7 @@ struct ClamAVThreatCenterApp: App {
 
         Settings {
             VStack(alignment: .leading, spacing: 8) {
-                Text("ClamAV Tehdit Merkezi").font(.headline)
+                Text("ClamAV Threat Center").font(.headline)
                 Text("Scan logs are kept for 30 days.")
                     .foregroundStyle(.secondary)
             }

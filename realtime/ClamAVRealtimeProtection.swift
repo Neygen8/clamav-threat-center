@@ -88,11 +88,11 @@ private enum TransferIntegrityError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .sourceChanged:
-            return "Kaynak dosya doğrulama sırasında değişti."
+            return "The source file changed during validation."
         case .destinationMismatch:
-            return "Karantina kopyasının bütünlüğü doğrulanamadı."
+            return "The integrity of the quarantine copy could not be verified."
         case .stagingPreserved:
-            return "Kaynak yarış sırasında değişti; hiçbir yeni dosya silinmedi ve sahiplenilen dosya staging alanında korundu."
+            return "The source changed during the race; no new files were deleted and the owned file was preserved in the staging area."
         }
     }
 }
@@ -109,7 +109,7 @@ private struct CoordinationError: LocalizedError {
 
     var errorDescription: String? {
         let detail = String(cString: strerror(code))
-        return "Karantina koordinasyonu başarısız (\(operation)): \(detail)"
+        return "Quarantine coordination failed (\(operation)): \(detail)"
     }
 }
 
@@ -124,7 +124,7 @@ private final class QuarantineCoordinator {
             Darwin.mkdir($0, mode_t(S_IRWXU))
         }
         if directoryResult != 0 && errno != EEXIST {
-            throw CoordinationError(operation: "dizin oluşturma", code: errno)
+            throw CoordinationError(operation: "create directory", code: errno)
         }
 
         var directoryInfo = stat()
@@ -132,14 +132,14 @@ private final class QuarantineCoordinator {
             Darwin.lstat($0, &directoryInfo)
         }
         guard directoryStatResult == 0 else {
-            throw CoordinationError(operation: "dizin doğrulama", code: errno)
+            throw CoordinationError(operation: "directory verification", code: errno)
         }
         guard directoryInfo.st_mode & S_IFMT == S_IFDIR,
               directoryInfo.st_uid == getuid() else {
-            throw CoordinationError(operation: "güvensiz koordinasyon dizini", code: EACCES)
+            throw CoordinationError(operation: "unsafe coordination directory", code: EACCES)
         }
         guard directoryURL.path.withCString({ Darwin.chmod($0, mode_t(S_IRWXU)) }) == 0 else {
-            throw CoordinationError(operation: "dizin izni", code: errno)
+            throw CoordinationError(operation: "directory permissions", code: errno)
         }
 
         let openedDescriptor = lockURL.path.withCString {
@@ -150,25 +150,25 @@ private final class QuarantineCoordinator {
             )
         }
         guard openedDescriptor >= 0 else {
-            throw CoordinationError(operation: "kilit dosyası açma", code: errno)
+            throw CoordinationError(operation: "open lock file", code: errno)
         }
 
         var lockInfo = stat()
         guard Darwin.fstat(openedDescriptor, &lockInfo) == 0 else {
             let errorCode = errno
             Darwin.close(openedDescriptor)
-            throw CoordinationError(operation: "kilit dosyası doğrulama", code: errorCode)
+            throw CoordinationError(operation: "lock file verification", code: errorCode)
         }
         guard lockInfo.st_mode & S_IFMT == S_IFREG,
               lockInfo.st_uid == getuid(),
               lockInfo.st_nlink == 1 else {
             Darwin.close(openedDescriptor)
-            throw CoordinationError(operation: "güvensiz kilit dosyası", code: EACCES)
+            throw CoordinationError(operation: "unsafe lockfile", code: EACCES)
         }
         guard Darwin.fchmod(openedDescriptor, mode_t(S_IRUSR | S_IWUSR)) == 0 else {
             let errorCode = errno
             Darwin.close(openedDescriptor)
-            throw CoordinationError(operation: "kilit dosyası izni", code: errorCode)
+            throw CoordinationError(operation: "lock file permissions", code: errorCode)
         }
 
         descriptor = openedDescriptor
@@ -181,7 +181,7 @@ private final class QuarantineCoordinator {
     func withExclusiveLock<T>(_ operation: () throws -> T) throws -> T {
         while advisoryFlock(descriptor, LOCK_EX) != 0 {
             guard errno == EINTR else {
-                throw CoordinationError(operation: "kilidi alma", code: errno)
+                throw CoordinationError(operation: "acquire lock", code: errno)
             }
         }
         defer { _ = advisoryFlock(descriptor, LOCK_UN) }
@@ -219,7 +219,7 @@ private func directoryDevice(at url: URL) throws -> UInt64 {
     var info = stat()
     let result = url.path.withCString { Darwin.lstat($0, &info) }
     guard result == 0, info.st_mode & S_IFMT == S_IFDIR else {
-        throw CoordinationError(operation: "karantina diski doğrulama", code: result == 0 ? ENOTDIR : errno)
+        throw CoordinationError(operation: "quarantine disk verification", code: result == 0 ? ENOTDIR : errno)
     }
     return UInt64(info.st_dev)
 }
@@ -229,7 +229,7 @@ private func streamingSHA256(at url: URL) throws -> [UInt8] {
         Darwin.open($0, O_RDONLY | O_CLOEXEC | O_NOFOLLOW)
     }
     guard descriptor >= 0 else {
-        throw CoordinationError(operation: "SHA-256 kaynak açma", code: errno)
+        throw CoordinationError(operation: "open source for SHA-256", code: errno)
     }
     defer { Darwin.close(descriptor) }
 
@@ -248,7 +248,7 @@ private func streamingSHA256(at url: URL) throws -> [UInt8] {
         }
         if readCount < 0 {
             if errno == EINTR { continue }
-            throw CoordinationError(operation: "SHA-256 kaynak okuma", code: errno)
+            throw CoordinationError(operation: "read source for SHA-256", code: errno)
         }
         if readCount == 0 { break }
         hasher.update(data: Data(buffer[0..<readCount]))
@@ -256,7 +256,7 @@ private func streamingSHA256(at url: URL) throws -> [UInt8] {
 
     var after = stat()
     guard Darwin.fstat(descriptor, &after) == 0 else {
-        throw CoordinationError(operation: "SHA-256 kaynak son doğrulama", code: errno)
+        throw CoordinationError(operation: "SHA-256 source final verification", code: errno)
     }
     let beforeIdentity = FileFingerprint(
         device: UInt64(before.st_dev),
@@ -308,7 +308,7 @@ private func renameExclusively(from sourceURL: URL, to destinationURL: URL) thro
         }
     }
     guard result == 0 else {
-        throw CoordinationError(operation: "atomik dosya sahiplenme", code: errno)
+        throw CoordinationError(operation: "atomic file claim", code: errno)
     }
 }
 
@@ -382,13 +382,13 @@ private func claimSource(
 
     guard stagingURL.lastPathComponent == "payload",
           isPrivateStagingContainer(stagingParent, for: originalURL) else {
-        throw CoordinationError(operation: "güvensiz staging yolu", code: EACCES)
+        throw CoordinationError(operation: "unsafe staging path", code: EACCES)
     }
     let creationResult = stagingParent.path.withCString {
         Darwin.mkdir($0, mode_t(S_IRWXU))
     }
     guard creationResult == 0 else {
-        throw CoordinationError(operation: "özel staging dizini oluşturma", code: errno)
+        throw CoordinationError(operation: "create private staging directory", code: errno)
     }
     guard stagingParent.path.withCString({ Darwin.chmod($0, mode_t(S_IRWXU)) }) == 0,
           validatedPrivateStagingContainer(
@@ -402,7 +402,7 @@ private func claimSource(
             originalURL: originalURL,
             fileManager: fileManager
         )
-        throw CoordinationError(operation: "özel staging dizini doğrulama", code: EACCES)
+        throw CoordinationError(operation: "private staging directory validation", code: EACCES)
     }
 
     let renameResult = originalURL.path.withCString { sourcePath in
@@ -417,14 +417,14 @@ private func claimSource(
             originalURL: originalURL,
             fileManager: fileManager
         )
-        throw CoordinationError(operation: "özel staging dosyasına sahiplenme", code: errorCode)
+        throw CoordinationError(operation: "claim private staging file", code: errorCode)
     }
     guard validatedPrivateStagingContainer(
         stagingParent,
         for: originalURL,
         containsPayload: true
     ) else {
-        throw CoordinationError(operation: "özel staging dizini son doğrulama", code: EACCES)
+        throw CoordinationError(operation: "final private staging directory verification", code: EACCES)
     }
 }
 
@@ -435,7 +435,7 @@ private func recoverStagedSource(
     guard pathEntryExists(at: stagingURL) else { return .missing }
 
     do {
-        // RENAME_EXCL mevcut bir kullanıcı dosyasının üzerine asla yazmaz.
+        // RENAME_EXCL never overwrites an existing user file.
         try renameExclusively(from: stagingURL, to: originalURL)
         cleanupPrivateStagingContainer(for: stagingURL, originalURL: originalURL)
         return .restored
@@ -443,9 +443,9 @@ private func recoverStagedSource(
         guard pathEntryExists(at: stagingURL) else { return .missing }
     }
 
-    // Original yol yeniden oluşturulduysa metadata'da kayıtlı stagingPath'i
-    // değiştirme. Preparing kaydı bu payload'ı Tehdit Merkezi'nde görünür ve
-    // sonraki başlangıç kurtarmasında tamamlanabilir tutar.
+    // If the original path was recreated, keep the stagingPath in metadata.
+    // The preparing record keeps the payload visible in Threat Center and
+    // recoverable on the next startup.
     return pathEntryExists(at: stagingURL) ? .preserved : .missing
 }
 
@@ -465,8 +465,8 @@ private func verifiedCrossVolumeCopy(
     for _ in 0..<claimAttempts {
         let candidate = requestedStagingURL ?? uniqueStagingURL(for: originalURL)
         do {
-            // Kaynağı önce aynı dizinde atomik olarak sahiplen. Bundan sonra
-            // originalURL yeniden yaratılsa bile yalnız staging girdisi silinir.
+            // First claim the source atomically in its directory. Afterwards, only the
+            // staging entry is deleted even if originalURL is recreated.
             try claimSource(
                 originalURL: originalURL,
                 stagingURL: candidate,
@@ -487,7 +487,7 @@ private func verifiedCrossVolumeCopy(
         }
     }
     guard let stagingURL else {
-        throw CoordinationError(operation: "benzersiz staging adı oluşturma", code: EEXIST)
+        throw CoordinationError(operation: "create unique staging name", code: EEXIST)
     }
     let temporaryStoredURL = requestedTemporaryStoredURL
         ?? storedURL.deletingLastPathComponent().appendingPathComponent(
@@ -514,8 +514,8 @@ private func verifiedCrossVolumeCopy(
     }
 
     do {
-        // Final isim hiçbir zaman kısmi payload içermez. Kopya önce karantina
-        // içindeki gizli, benzersiz ada yazılır ve doğrulandıktan sonra yayınlanır.
+        // The final name never contains a partial payload. First copy to a hidden,
+        // unique quarantine name, then publish after verification.
         try fileManager.copyItem(at: stagingURL, to: temporaryStoredURL)
         try afterCopy?(temporaryStoredURL)
 
@@ -578,7 +578,7 @@ private func verifiedCrossVolumeCopy(
             try recoverThenThrow(error)
         }
     } catch let error as TransferIntegrityError {
-        // Yukarıdaki kontrollü recovery yolları staging'i zaten ele aldı.
+        // The controlled recovery paths above already handled staging.
         if pathEntryExists(at: stagingURL) {
             try recoverThenThrow(error)
         }
@@ -594,24 +594,24 @@ private func securePrivateRegularFile(at url: URL) throws {
         Darwin.open($0, O_RDWR | O_CLOEXEC | O_NOFOLLOW)
     }
     guard descriptor >= 0 else {
-        throw CoordinationError(operation: "özel dosya açma", code: errno)
+        throw CoordinationError(operation: "open private file", code: errno)
     }
     defer { Darwin.close(descriptor) }
 
     var info = stat()
     guard Darwin.fstat(descriptor, &info) == 0 else {
-        throw CoordinationError(operation: "özel dosya doğrulama", code: errno)
+        throw CoordinationError(operation: "verify file", code: errno)
     }
     guard info.st_mode & S_IFMT == S_IFREG,
           info.st_uid == getuid(),
           info.st_nlink == 1 else {
-        throw CoordinationError(operation: "güvensiz özel dosya", code: EACCES)
+        throw CoordinationError(operation: "insecure private file", code: EACCES)
     }
     guard Darwin.fchmod(descriptor, mode_t(S_IRUSR | S_IWUSR)) == 0 else {
-        throw CoordinationError(operation: "özel dosya izni", code: errno)
+        throw CoordinationError(operation: "private file permissions", code: errno)
     }
     guard Darwin.fsync(descriptor) == 0 else {
-        throw CoordinationError(operation: "özel dosya eşitleme", code: errno)
+        throw CoordinationError(operation: "sync private file", code: errno)
     }
 }
 
@@ -627,7 +627,7 @@ private func ensureSecureMetadata(_ data: Data, at metadataURL: URL) throws {
             try securePrivateRegularFile(at: metadataURL)
             return
         } catch {
-            // Atomik yeniden yayınlama dosya izinlerini de onarır.
+            // Atomic republication also repairs file permissions.
         }
     }
     try securelyPublishMetadata(data, at: metadataURL)
@@ -646,7 +646,7 @@ private func removeFailedDestination(
         try ensureSecureMetadata(metadataData, at: metadataURL)
         return false
     } catch {
-        // Temizlenemeyen destination hiçbir zaman görünmez kalmamalı.
+        // A destination that cannot be cleaned up must never remain invisible.
         try ensureSecureMetadata(metadataData, at: metadataURL)
         return false
     }
@@ -667,8 +667,8 @@ private func restorePayloadOrPublishMetadata(
         try? fileManager.removeItem(at: metadataURL)
         return true
     } catch {
-        // Restore mümkün değilse payload karantinada kalır. Önceden yayımlanmış
-        // doğru metadata'yı doğrula; yoksa atomik ve 0600 olarak yeniden yayımla.
+        // If restore is impossible, the payload remains in quarantine. Verify the
+        // published metadata or republish it atomically with mode 0600.
         guard fileManager.fileExists(atPath: storedURL.path) else { throw error }
         try? fileManager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: storedURL.path)
 
@@ -807,7 +807,7 @@ private final class RealtimeProtection {
                     path: self.quarantineDirectory.path,
                     result: "recovery",
                     signature: nil,
-                    message: "\(recoveredCount) yarım kalmış karantina işlemi güvenli biçimde uzlaştırıldı."
+                    message: "\(recoveredCount) incomplete quarantine operations were safely reconciled."
                 ))
             }
             // The stream begins at "now". Do not re-scan an existing backlog
@@ -1376,7 +1376,7 @@ private final class RealtimeProtection {
                 path: quarantineDirectory.path,
                 result: "error",
                 signature: nil,
-                message: "Yarım kalmış karantina işlemleri uzlaştırılamadı: \(error.localizedDescription)"
+                message: "Incomplete quarantine operations could not be reconciled: \(error.localizedDescription)"
             ))
             return 0
         }
@@ -1482,7 +1482,7 @@ private final class RealtimeProtection {
                     path: self.watchedPaths.first ?? "/",
                     result: "recovery",
                     signature: nil,
-                    message: "Dosya sistemi izleyicisi yeniden kuruldu (\(reason))."
+                    message: "File system watcher reinitialized (\(reason))."
                 ))
             } catch {
                 self.streamRebuildScheduled = false
@@ -1492,7 +1492,7 @@ private final class RealtimeProtection {
                     path: self.watchedPaths.first ?? "/",
                     result: "error",
                     signature: nil,
-                    message: "Dosya sistemi izleyicisi yeniden kurulamadı: \(error.localizedDescription)"
+                    message: "The file system watcher could not be reinitialized: \(error.localizedDescription)"
                 ))
                 self.eventQueue.asyncAfter(deadline: .now() + 5) { [weak self] in
                     guard let self, self.isServiceRunning else { return }
@@ -1537,8 +1537,8 @@ private final class RealtimeProtection {
             result: "recovery",
             signature: nil,
             message: reason == "startup"
-                ? "Başlangıç telafi taraması başlatıldı."
-                : "Dosya sistemi olay kaybı algılandı; sınırlı telafi taraması başlatıldı (\(reason))."
+                ? "Startup recovery scan started."
+                : "File system event loss detected; limited recovery scan started (\(reason))."
         ))
 
         reconciliationQueue.async { [weak self] in
@@ -1563,7 +1563,7 @@ private final class RealtimeProtection {
                     path: self.watchedPaths.first ?? "/",
                     result: "recovery",
                     signature: nil,
-                    message: "Telafi taraması için \(candidates.count) yakın tarihli dosya sıraya alındı."
+                    message: "For recovery scanning, \(candidates.count) recent files queued."
                 ))
                 if let followUpReason = self.reconciliationFollowUpReason {
                     self.reconciliationFollowUpReason = nil
@@ -1711,14 +1711,14 @@ private final class RealtimeProtection {
                 path: path,
                 result: "clean",
                 signature: nil,
-                message: "Tehdit bulunmadı."
+                message: "No threat found."
             ))
         case 1:
             clearRetry(for: path)
-            let signature = parseSignature(from: result.output) ?? "ClamAV tarafından algılandı"
+            let signature = parseSignature(from: result.output) ?? "Detected by ClamAV"
 
             guard let currentIdentity = currentFingerprint(path: path) else {
-                // Başka bir koruma katmanı dosyayı zaten taşımış olabilir.
+                // Another protection layer may already have moved the file.
                 return
             }
             guard currentIdentity == fingerprint else {
@@ -1740,15 +1740,15 @@ private final class RealtimeProtection {
                         path: path,
                         result: "infected",
                         signature: signature,
-                        message: "Tehdit otomatik olarak karantinaya alındı."
+                        message: "Threat automatically quarantined."
                     ))
                     notify(
-                        title: "ClamAV: Tehdit karantinaya alındı",
+                        title: "ClamAV: Threat quarantined",
                         message: "\(URL(fileURLWithPath: path).lastPathComponent) — \(signature)"
                     )
                 case .sourceMissing:
-                    // VirusTotal gibi ortak kilidi kullanan başka bir katman kazandı.
-                    // Aynı olayı hata olarak tekrar kaydetme veya bildirme.
+                    // Another layer using the shared lock, such as VirusTotal, won.
+                    // Do not log or report the same event as an error.
                     return
                 case .sourceChanged:
                     eventQueue.async { [weak self] in self?.schedule(path: path, delay: 1.5) }
@@ -1762,11 +1762,11 @@ private final class RealtimeProtection {
                     path: path,
                     result: "error",
                     signature: signature,
-                    message: "Tehdit bulundu ancak karantinaya alınamadı: \(error.localizedDescription)"
+                    message: "Threat found but could not be quarantined: \(error.localizedDescription)"
                 ))
                 notify(
-                    title: "ClamAV: Müdahale gerekiyor",
-                    message: "Tehdit bulundu ancak karantina başarısız oldu."
+                    title: "ClamAV: Action required",
+                    message: "Threat found but quarantine failed."
                 )
             }
         case 124:
@@ -1790,8 +1790,8 @@ private final class RealtimeProtection {
                 result: "skipped",
                 signature: nil,
                 message: restartDaemon
-                    ? "Bu dosya için \(Int(allowedScanSeconds)) saniyelik canlı tarama sınırı aşıldı; canlı kuyruk serbest bırakıldı ve ClamAV motoru güvenli biçimde yeniden başlatıldı. Dosyayı istersen elle taratabilirsin."
-                    : "Bu dosya için \(Int(allowedScanSeconds)) saniyelik canlı tarama sınırı aşıldı; canlı kuyruk serbest bırakıldı. Tekrarlayan takılmalarda ClamAV motoru otomatik onarılacak. Dosyayı istersen elle taratabilirsin."
+                    ? "The \(Int(allowedScanSeconds))-second real-time scan limit was exceeded for this file; the queue was released and the ClamAV engine was safely restarted. You can scan the file manually."
+                    : "The \(Int(allowedScanSeconds))-second real-time scan limit was exceeded for this file; the queue was released. The ClamAV engine will be repaired automatically if stalls recur. You can scan the file manually."
             ))
         default:
             recordScan(path: path, result: "error", daemonConnected: false)
@@ -1873,7 +1873,7 @@ private final class RealtimeProtection {
             let text = String(data: data, encoding: .utf8) ?? ""
             return ScanResult(
                 exitCode: timedOut ? 124 : process.terminationStatus,
-                output: timedOut ? "Canlı tarama zaman aşımına uğradı." : text
+                output: timedOut ? "Live scan timed out." : text
             )
         } catch {
             return ScanResult(exitCode: 127, output: error.localizedDescription)
@@ -1897,12 +1897,12 @@ private final class RealtimeProtection {
         expectedIdentity: FileFingerprint
     ) throws -> QuarantineOutcome {
         guard let quarantineCoordinator else {
-            throw CoordinationError(operation: "kilit hazırlanmadı", code: EINVAL)
+            throw CoordinationError(operation: "lock not prepared", code: EINVAL)
         }
 
         return try quarantineCoordinator.withExclusiveLock {
-            // Kimlik kontrolü lock alındıktan sonra mutlaka tekrarlanır. Böylece
-            // ClamAV ve VirusTotal aynı kaynağı eşzamanlı taşımaya çalışamaz.
+            // Repeat the identity check after acquiring the lock so ClamAV and
+            // VirusTotal cannot move the same source simultaneously.
             guard let lockedIdentity = currentFingerprint(path: path) else {
                 return .sourceMissing
             }
@@ -1977,9 +1977,8 @@ private final class RealtimeProtection {
             let preparingMetadataData = try JSONEncoder().encode(preparingMetadata)
             let readyMetadataData = try JSONEncoder().encode(readyMetadata)
 
-            // Metadata'yı taşımadan önce atomik olarak hazırla. Bundan sonraki
-            // herhangi bir izin/restore hatasında destination görünmez orphan
-            // hâline gelemez.
+            // Prepare metadata atomically before moving. Any subsequent permission or
+            // restore error cannot leave an invisible orphan destination.
             do {
                 try securelyPublishMetadata(preparingMetadataData, at: metadataURL)
             } catch {
@@ -2024,9 +2023,9 @@ private final class RealtimeProtection {
                     )
                     guard destinationRemoved, temporaryRemoved else { throw transferError }
                     try? fileManager.removeItem(at: metadataURL)
-                    // Cross-volume helper kaynağı atomik staging adına aldıktan
-                    // sonra originalURL yeni bir kullanıcı dosyası olabilir.
-                    // Burada o yolu yorumlamak veya ona dokunmak güvenli değildir.
+                    // After the cross-volume helper claims the source under a staging name,
+                    // originalURL may refer to a new user file. It is unsafe to inspect
+                    // or modify that path here.
                     throw transferError
                 }
 
@@ -2070,7 +2069,7 @@ private final class RealtimeProtection {
                         )
                         if restored { throw transferError }
 
-                        // Restore edilemeyen payload metadata ile görünürdür.
+                        // A payload that cannot be restored remains visible through its metadata.
                         throw transferError
                     }
 
@@ -2098,8 +2097,8 @@ private final class RealtimeProtection {
                 )
                 if restored { throw finalizationError }
 
-                // Restore başarısız oldu fakat payload + güvenli metadata
-                // karantinada ve Tehdit Merkezi tarafından kurtarılabilir.
+                // Restore failed, but the payload and secure metadata remain in quarantine
+                // and can be recovered by Threat Center.
                 return .quarantined
             }
             return .quarantined
@@ -2256,7 +2255,7 @@ private final class RealtimeProtection {
             try data.write(to: statusURL, options: .atomic)
             try fileManager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: statusURL.path)
         } catch {
-            FileHandle.standardError.write(Data("Durum dosyası yazılamadı: \(error)\n".utf8))
+            FileHandle.standardError.write(Data("Could not write status file: \(error)\n".utf8))
         }
     }
 
@@ -2280,7 +2279,7 @@ private final class RealtimeProtection {
             }
             try fileManager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: eventsURL.path)
         } catch {
-            FileHandle.standardError.write(Data("Olay günlüğü yazılamadı: \(error)\n".utf8))
+            FileHandle.standardError.write(Data("Could not write event log: \(error)\n".utf8))
         }
     }
 
@@ -2303,7 +2302,7 @@ private final class RealtimeProtection {
             .prefix(3)
             .joined(separator: " ")
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        return compact.isEmpty ? "ClamAV taraması tamamlanamadı." : compact
+        return compact.isEmpty ? "ClamAV scan could not be completed." : compact
     }
 
     private func notify(title: String, message: String) {
@@ -2339,13 +2338,13 @@ private enum ProtectionError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .missingClamdscan:
-            return "clamdscan bulunamadı. ClamAV kurulumu eksik."
+            return "clamdscan not found. ClamAV installation missing."
         case .noWatchedPaths:
-            return "İzlenecek erişilebilir klasör bulunamadı."
+            return "No accessible folders found to watch."
         case .streamCreationFailed:
-            return "Dosya sistemi izleyicisi oluşturulamadı."
+            return "Failed to create file system tracker."
         case .streamStartFailed:
-            return "Dosya sistemi izleyicisi başlatılamadı."
+            return "Failed to initialize file system tracker."
         }
     }
 }
@@ -2362,7 +2361,7 @@ private func runVerifiedTransferTests(in parentDirectory: URL) throws {
     let originalData = Data(repeating: 0x41, count: 2_200_000)
     let changedData = Data(repeating: 0x42, count: originalData.count)
 
-    // Aynı disk modeli: rename sonrası inode/generation kimliği korunmalı.
+    // Same-volume model: inode/generation identity must survive rename.
     let sameSource = testDirectory.appendingPathComponent("same-source.bin")
     let sameStored = testDirectory.appendingPathComponent("same-stored.bin")
     try originalData.write(to: sameSource)
@@ -2372,11 +2371,11 @@ private func runVerifiedTransferTests(in parentDirectory: URL) throws {
     try FileManager.default.moveItem(at: sameSource, to: sameStored)
     guard let sameResult = fileFingerprint(at: sameStored),
           sameVolumeIdentityMatches(sameResult, expected: sameExpected) else {
-        throw CoordinationError(operation: "same-volume inode testi", code: EIO)
+        throw CoordinationError(operation: "same-volume inode test", code: EIO)
     }
 
-    // Cross-volume kod yolu aynı test diskinde zorlanır: hash doğrulandıktan
-    // sonra yalnız doğrulanan kaynak silinmelidir.
+    // Exercise the cross-volume path on the test disk: after hash verification,
+    // only the verified source may be deleted.
     let cleanSource = testDirectory.appendingPathComponent("cross-clean-source.bin")
     let cleanStored = testDirectory.appendingPathComponent("cross-clean-stored.bin")
     try originalData.write(to: cleanSource)
@@ -2393,11 +2392,11 @@ private func runVerifiedTransferTests(in parentDirectory: URL) throws {
     guard cleanOutcome == .completed,
           !FileManager.default.fileExists(atPath: cleanSource.path),
           try streamingSHA256(at: cleanStored) == cleanDigest else {
-        throw CoordinationError(operation: "cross-volume temiz kopya testi", code: EIO)
+        throw CoordinationError(operation: "cross-volume clean copy test", code: EIO)
     }
 
-    // Sahiplenmeden sonra kullanıcı aynı original path'i yeni bir inode ile
-    // oluşturursa yeni dosya silinmemeli; yalnız rastgele staging silinmelidir.
+    // If the user creates a new inode at the original path after claiming,
+    // the new file must remain; only the random staging entry may be deleted.
     let replacedSource = testDirectory.appendingPathComponent("cross-replaced-source.bin")
     let replacedStored = testDirectory.appendingPathComponent("cross-replaced-stored.bin")
     try originalData.write(to: replacedSource)
@@ -2417,11 +2416,11 @@ private func runVerifiedTransferTests(in parentDirectory: URL) throws {
     guard replacedOutcome == .completed,
           (try Data(contentsOf: replacedSource)) == changedData,
           try streamingSHA256(at: replacedStored) == replacedDigest else {
-        throw CoordinationError(operation: "path replacement yarış testi", code: EIO)
+        throw CoordinationError(operation: "path replacement race test", code: EIO)
     }
 
-    // Sahiplenilmiş inode kopyadan sonra değişirse staging geri yüklenmeli ve
-    // doğrulanmamış destination temizlenebilmelidir.
+    // If the claimed inode changes after copying, staging must be restored
+    // and the unverified destination must be removable.
     let changedSource = testDirectory.appendingPathComponent("cross-mutated-source.bin")
     let changedStored = testDirectory.appendingPathComponent("cross-mutated-stored.bin")
     let changedMetadata = testDirectory.appendingPathComponent("cross-mutated.json")
@@ -2453,11 +2452,11 @@ private func runVerifiedTransferTests(in parentDirectory: URL) throws {
               metadataURL: changedMetadata,
               metadataData: changedMetadataData
           ) else {
-        throw CoordinationError(operation: "staging mutation kurtarma testi", code: EIO)
+        throw CoordinationError(operation: "staging mutation recovery test", code: EIO)
     }
     try? FileManager.default.removeItem(at: changedMetadata)
 
-    // Destination kopyası bozulursa hash eşleşmemeli ve kaynak silinmemeli.
+    // If the destination copy is corrupted, the hash must differ and the source must remain.
     let corruptSource = testDirectory.appendingPathComponent("cross-corrupt-source.bin")
     let corruptStored = testDirectory.appendingPathComponent("cross-corrupt-stored.bin")
     let corruptMetadata = testDirectory.appendingPathComponent("cross-corrupt.json")
@@ -2482,9 +2481,9 @@ private func runVerifiedTransferTests(in parentDirectory: URL) throws {
                 try handle.synchronize()
             }
         )
-        throw CoordinationError(operation: "bozuk destination kabul edildi", code: EIO)
+        throw CoordinationError(operation: "corrupt destination was accepted", code: EIO)
     } catch TransferIntegrityError.destinationMismatch {
-        // Beklenen güvenli ret.
+        // Expected safe rejection.
     }
     guard FileManager.default.fileExists(atPath: corruptSource.path),
           try removeFailedDestination(
@@ -2492,7 +2491,7 @@ private func runVerifiedTransferTests(in parentDirectory: URL) throws {
               metadataURL: corruptMetadata,
               metadataData: corruptMetadataData
           ) else {
-        throw CoordinationError(operation: "bozuk destination temizleme testi", code: EIO)
+        throw CoordinationError(operation: "corrupt destination cleanup test", code: EIO)
     }
     try? FileManager.default.removeItem(at: corruptMetadata)
 }
@@ -2528,7 +2527,7 @@ private func runExternalVerifiedTransferTests(
             .appendingPathComponent("payload")
         try originalData.write(to: sourceURL)
         guard let identity = fileFingerprint(at: sourceURL) else {
-            throw CoordinationError(operation: "exFAT kaynak kimliği", code: EIO)
+            throw CoordinationError(operation: "exFAT source ID", code: EIO)
         }
         let digest = try streamingSHA256(at: sourceURL)
         let outcome = try verifiedCrossVolumeCopy(
@@ -2546,14 +2545,14 @@ private func runExternalVerifiedTransferTests(
               try streamingSHA256(at: storedURL) == digest,
               !pathEntryExists(at: stagingURL),
               !pathEntryExists(at: temporaryURL) else {
-            throw CoordinationError(operation: "exFAT doğrulanmış transfer", code: EIO)
+            throw CoordinationError(operation: "exFAT verified transfer", code: EIO)
         }
         if replaceOriginal {
             guard try Data(contentsOf: sourceURL) == replacementData else {
-                throw CoordinationError(operation: "exFAT replacement koruması", code: EIO)
+                throw CoordinationError(operation: "exFAT replacement protection", code: EIO)
             }
         } else if pathEntryExists(at: sourceURL) {
-            throw CoordinationError(operation: "exFAT kaynak temizleme", code: EIO)
+            throw CoordinationError(operation: "exFAT source cleanup", code: EIO)
         }
     }
 
@@ -2586,7 +2585,7 @@ private func runQuarantineRecoveryTest(in parentDirectory: URL) throws {
           FileManager.default.fileExists(atPath: restoredOriginal.path),
           !FileManager.default.fileExists(atPath: restoredPayload.path),
           !FileManager.default.fileExists(atPath: restoredMetadata.path) else {
-        throw CoordinationError(operation: "restore testi", code: EIO)
+        throw CoordinationError(operation: "restore test", code: EIO)
     }
 
     let occupiedOriginal = testDirectory.appendingPathComponent("occupied-original", isDirectory: true)
@@ -2612,7 +2611,7 @@ private func runQuarantineRecoveryTest(in parentDirectory: URL) throws {
           publishedMetadata.path.withCString({ Darwin.lstat($0, &metadataInfo) }) == 0,
           payloadInfo.st_mode & mode_t(0o777) == mode_t(0o600),
           metadataInfo.st_mode & mode_t(0o777) == mode_t(0o600) else {
-        throw CoordinationError(operation: "metadata kurtarma testi", code: EIO)
+        throw CoordinationError(operation: "metadata recovery test", code: EIO)
     }
 }
 
@@ -2646,7 +2645,7 @@ private func runCoordinationLockTest() -> Int32 {
         }
 
         guard holderReady.wait(timeout: .now() + 2) == .success else {
-            FileHandle.standardError.write(Data("TEST HATA: ilk kilit alınamadı.\n".utf8))
+            FileHandle.standardError.write(Data("TEST ERROR: could not acquire the first lock.\n".utf8))
             return 1
         }
 
@@ -2658,13 +2657,13 @@ private func runCoordinationLockTest() -> Int32 {
         }
 
         guard contenderEntered.wait(timeout: .now() + .milliseconds(250)) == .timedOut else {
-            FileHandle.standardError.write(Data("TEST HATA: ikinci işlem kilitliyken kritik bölgeye girdi.\n".utf8))
+            FileHandle.standardError.write(Data("TEST ERROR: second process entered the critical section while locked.\n".utf8))
             return 1
         }
 
         releaseHolder.signal()
         guard contenderEntered.wait(timeout: .now() + 2) == .success else {
-            FileHandle.standardError.write(Data("TEST HATA: kilit bırakıldıktan sonra ilerleme olmadı.\n".utf8))
+            FileHandle.standardError.write(Data("TEST ERROR: no progress after lock release.\n".utf8))
             return 1
         }
 
@@ -2676,7 +2675,7 @@ private func runCoordinationLockTest() -> Int32 {
               lockInfo.st_mode & mode_t(0o777) == mode_t(0o600),
               lockInfo.st_mode & S_IFMT == S_IFREG,
               lockInfo.st_uid == getuid() else {
-            FileHandle.standardError.write(Data("TEST HATA: kilit yolu veya izinleri güvenli değil.\n".utf8))
+            FileHandle.standardError.write(Data("TEST ERROR: lock path or permissions are unsafe.\n".utf8))
             return 1
         }
 
@@ -2689,10 +2688,10 @@ private func runCoordinationLockTest() -> Int32 {
             )
         }
 
-        print("TEST OK: lock, restore, inode ve cross-volume SHA-256 mutation yolları güvenli.")
+        print("TEST OK: lock, restore, inode and cross-volume SHA-256 mutation paths are safe.")
         return 0
     } catch {
-        FileHandle.standardError.write(Data("TEST HATA: \(error.localizedDescription)\n".utf8))
+        FileHandle.standardError.write(Data("TEST ERROR: \(error.localizedDescription)\n".utf8))
         return 1
     }
 }
@@ -2708,7 +2707,7 @@ do {
     let terminationSource = DispatchSource.makeSignalSource(signal: SIGTERM, queue: .main)
     let interruptSource = DispatchSource.makeSignalSource(signal: SIGINT, queue: .main)
     let stop: (String) -> Void = { reason in
-        FileHandle.standardError.write(Data("ClamAV canlı koruma \(reason) ile durduruldu.\n".utf8))
+        FileHandle.standardError.write(Data("ClamAV live protection stopped: \(reason).\n".utf8))
         protection.stop()
         exit(EXIT_SUCCESS)
     }
@@ -2718,7 +2717,7 @@ do {
     interruptSource.resume()
     RunLoop.main.run()
 } catch {
-    FileHandle.standardError.write(Data("ClamAV canlı koruma başlatılamadı: \(error.localizedDescription)\n".utf8))
+    FileHandle.standardError.write(Data("ClamAV live protection could not start: \(error.localizedDescription)\n".utf8))
     exit(EXIT_FAILURE)
 }
 #endif
