@@ -45,7 +45,7 @@ struct ScanRecord: Identifiable {
     var statusText: String {
         if infectedFiles > 0 { return "Tehdit bulundu" }
         if warningCount > 0 { return "Warning" }
-        return "Temiz"
+        return "Clean"
     }
 
     var statusColor: Color {
@@ -172,7 +172,7 @@ struct RealtimeProtectionEvent: Decodable, Identifiable {
 
     var resultText: String {
         switch result {
-        case "clean": return "Temiz"
+        case "clean": return "Clean"
         case "infected": return "Threat quarantined"
         case "error": return "Scan failed"
         case "skipped": return "Skipped"
@@ -326,7 +326,7 @@ struct VirusTotalResult: Decodable, Identifiable {
 
     var statusText: String {
         switch status {
-        case "known-clean", "uploaded-clean", "clean": return "Temiz"
+        case "known-clean", "uploaded-clean", "clean": return "Clean"
         case "known-warning", "uploaded-warning", "warning", "inceleme-gerekli-tekil-uyarı": return "Review needed"
         case "known-malicious", "uploaded-malicious", "malicious", "quarantined": return "Tehdit bulundu"
         case "unknown", "bilinmiyor-yüklenmedi-gizlilik": return "Unknown to VirusTotal"
@@ -376,25 +376,25 @@ private enum SecureQuarantineError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .unsafeStorage:
-            return "Karantina alanının güvenliği doğrulanamadı. Otomasyonu yeniden kur."
+            return "Security of the quarantine area could not be verified. Reinstall automation."
         case .lockBusy:
-            return "Başka bir güvenlik bileşeni şu anda karantina işlemi yapıyor. Birkaç saniye sonra yeniden dene."
+            return "Another security component is currently quarantining. Try again in a few seconds."
         case .lockUnavailable:
-            return "Ortak karantina kilidi açılamadı. Otomasyonu yeniden kur."
+            return "Failed to unlock common quarantine. Reinstall automation."
         case .sourceMissing:
-            return "Dosya artık belirtilen konumda bulunmuyor."
+            return "The file no longer exists in the specified location."
         case .sourceChanged:
-            return "Dosya işlem sırasında değiştiği için karantinaya alınmadı. Yeniden tarayıp tekrar dene."
+            return "The file was not quarantined because it changed during processing. Scan again and try again."
         case .metadataPreparationFailed:
-            return "Karantina kaydı güvenli biçimde hazırlanamadı."
+            return "The quarantine record could not be prepared safely."
         case .fileSecuredButNeedsAttention:
-            return "Dosya özgün konumuna döndürülemedi; Tehdit Merkezi'nde görünen güvenli karantinada tutuluyor."
+            return "The file could not be reverted to its original location; it is being held in secure quarantine, which appears in the Threat Center."
         case .incompleteOperation:
-            return "Karantina işlemi tamamlanmamış durumda. Canlı korumanın kurtarma işlemini bitirmesini bekle."
+            return "The quarantine process is incomplete. Wait for live protection to finish recovering."
         case .restorePreScanThreatFound:
-            return "Geri yükleme öncesi tekrar tarandı ve tehdit bulundu."
+            return "Before restoring, it was scanned again and the threat was found."
         case .restorePreScanIncomplete:
-            return "Geri yükleme öncesi tarama tamamlanamadı; dosya karantinada tutuldu."
+            return "Unable to complete scan before restore; file was quarantined."
         }
     }
 }
@@ -414,7 +414,7 @@ private struct QuarantineFilesystemError: LocalizedError {
     let code: Int32
 
     var errorDescription: String? {
-        "Güvenli atomik yeniden adlandırma başarısız: \(String(cString: strerror(code))) (\(code))"
+        "Secure atomic rename failed: \(String(cString: strerror(code))) (\(code))"
     }
 }
 
@@ -440,13 +440,13 @@ struct ProtectionLayerStatus: Identifiable, Sendable {
     let health: ProtectionLayerHealth
 
     static let checkingItems: [ProtectionLayerStatus] = [
-        ProtectionLayerStatus(id: "gatekeeper", name: "Uygulama denetimi", icon: "checkmark.seal.fill", statusText: "Checking", detail: "İndirilen uygulamaların güvenilirliğini denetler.", health: .checking),
-        ProtectionLayerStatus(id: "firewall", name: "Güvenlik duvarı", icon: "network.badge.shield.half.filled", statusText: "Checking", detail: "İstenmeyen gelen bağlantıları sınırlar.", health: .checking),
-        ProtectionLayerStatus(id: "filevault", name: "Disk şifreleme", icon: "lock.fill", statusText: "Checking", detail: "Mac'teki verileri parola ile korur.", health: .checking),
-        ProtectionLayerStatus(id: "lulu", name: "LuLu", icon: "arrow.up.right.circle.fill", statusText: "Checking", detail: "Uygulamaların dışarıya bağlantılarını denetler.", health: .checking),
-        ProtectionLayerStatus(id: "santa", name: "Santa", icon: "hand.raised.square.fill", statusText: "Checking", detail: "Güvenilmeyen programların çalışmasını sınırlar.", health: .checking),
-        ProtectionLayerStatus(id: "blockblock", name: "BlockBlock", icon: "bolt.shield.fill", statusText: "Checking", detail: "Programların kendini kalıcı hâle getirmesini izler.", health: .checking),
-        ProtectionLayerStatus(id: "ransomwhere", name: "RansomWhere?", icon: "lock.shield.fill", statusText: "Checking", detail: "Şüpheli toplu dosya şifreleme davranışını izler.", health: .checking)
+        ProtectionLayerStatus(id: "gatekeeper", name: "Application security", icon: "checkmark.seal.fill", statusText: "Checking", detail: "Checks the reliability of downloaded applications.", health: .checking),
+        ProtectionLayerStatus(id: "firewall", name: "Firewall", icon: "network.badge.shield.half.filled", statusText: "Checking", detail: "Limits unwanted incoming connections.", health: .checking),
+        ProtectionLayerStatus(id: "filevault", name: "Disk encryption", icon: "lock.fill", statusText: "Checking", detail: "Protects data on your Mac with a password.", health: .checking),
+        ProtectionLayerStatus(id: "lulu", name: "LuLu", icon: "arrow.up.right.circle.fill", statusText: "Checking", detail: "Controls the external connections of applications.", health: .checking),
+        ProtectionLayerStatus(id: "santa", name: "Santa", icon: "hand.raised.square.fill", statusText: "Checking", detail: "Restricts untrusted programs from running.", health: .checking),
+        ProtectionLayerStatus(id: "blockblock", name: "BlockBlock", icon: "bolt.shield.fill", statusText: "Checking", detail: "Monitors programs for persistence changes.", health: .checking),
+        ProtectionLayerStatus(id: "ransomwhere", name: "RansomWhere?", icon: "lock.shield.fill", statusText: "Checking", detail: "Monitor suspicious bulk file encryption behavior.", health: .checking)
     ]
 }
 
@@ -470,7 +470,7 @@ private func realtimeJSONDecoder() -> JSONDecoder {
 
         throw DecodingError.dataCorruptedError(
             in: container,
-            debugDescription: "Geçersiz canlı koruma tarihi: \(value)"
+            debugDescription: "Invalid live protection date: \(value)"
         )
     }
     return decoder
@@ -521,7 +521,7 @@ final class ThreatStore: ObservableObject {
     @Published var quarantineItems: [QuarantineItem] = []
     @Published var isCommandRunning = false
     @Published var activeCommand = ""
-    @Published var commandResult = "Henüz manuel komut çalıştırılmadı."
+    @Published var commandResult = "No manual commands have been executed yet."
     @Published var scanProgressStatus: ScanProgressStatus?
     @Published var realtimeStatus: RealtimeProtectionStatus?
     @Published var realtimeEvents: [RealtimeProtectionEvent] = []
@@ -532,7 +532,7 @@ final class ThreatStore: ObservableObject {
     @Published var virusTotalStatus: VirusTotalServiceStatus?
     @Published var virusTotalResults: [VirusTotalResult] = []
     @Published var isVirusTotalManualScanRunning = false
-    @Published var virusTotalManualMessage = "Bir dosya seçerek önce yalnızca hash bilgisini VirusTotal'da sorgulayabilirsin."
+    @Published var virusTotalManualMessage = "By selecting a file, you can first query only the hash information in VirusTotal."
     @Published var pendingVirusTotalUpload: VirusTotalUploadRequest?
     @Published var isRestartingClamAVDaemon = false
     @Published var isRestartingVirusTotal = false
@@ -775,7 +775,7 @@ final class ThreatStore: ObservableObject {
         process.standardError = output
 
         setOwnedServiceRestarting(label, true)
-        let startingMessage = "\(displayName) yeniden başlatılıyor…"
+        let startingMessage = "\(displayName) yeniden starting…"
         ownedServiceMessages[label] = startingMessage
         if label == "com.local.clamav.realtime" { protectionCommandResult = startingMessage }
 
@@ -784,7 +784,7 @@ final class ThreatStore: ObservableObject {
             try? writeHandle.close()
         } catch {
             setOwnedServiceRestarting(label, false)
-            let message = "\(displayName) yeniden başlatılamadı. Otomasyonu yeniden kurmayı dene."
+            let message = "\(displayName) could not be restarted. Try reinstalling the automation."
             ownedServiceMessages[label] = message
             if label == "com.local.clamav.realtime" { protectionCommandResult = message }
             return
@@ -798,8 +798,8 @@ final class ThreatStore: ObservableObject {
                 guard let self else { return }
                 self.setOwnedServiceRestarting(label, false)
                 let message = finished.terminationStatus == 0
-                    ? "\(displayName) yeniden başlatıldı. Durum birkaç saniye içinde güncellenecek."
-                    : "\(displayName) yeniden başlatılamadı. Otomasyonu yeniden kurmayı dene."
+                    ? "\(displayName) restarted. Status will update in a few seconds."
+                    : "\(displayName) could not be restarted. Try reinstalling the automation."
                 self.ownedServiceMessages[label] = message
                 if label == "com.local.clamav.realtime" { self.protectionCommandResult = message }
                 self.refresh()
@@ -843,16 +843,16 @@ final class ThreatStore: ObservableObject {
 
     func runQuickScan() {
         runCommand(
-            title: "Hızlı tarama",
+            title: "quick scan",
             executable: scriptsDirectory.appendingPathComponent("scan-clamav.sh"),
             arguments: [],
-            successMessage: "Hızlı tarama tamamlandı; tehdit bulunmadı."
+            successMessage: "Quick scan complete; no threats found."
         )
     }
 
     func chooseAndScan() {
         let panel = NSOpenPanel()
-        panel.title = "ClamAV ile taranacak öğeleri seç"
+        panel.title = "Select items to scan with ClamAV"
         panel.prompt = "Start Scan"
         panel.canChooseFiles = true
         panel.canChooseDirectories = true
@@ -861,10 +861,10 @@ final class ThreatStore: ObservableObject {
         panel.begin { [weak self] response in
             guard response == .OK, let self else { return }
             self.runCommand(
-                title: "Seçili öğe taraması",
+                title: "Selected item scan",
                 executable: self.scriptsDirectory.appendingPathComponent("scan-selection.sh"),
                 arguments: panel.urls.map(\.path),
-                successMessage: "Seçili öğeler tarandı; tehdit bulunmadı."
+                successMessage: "Selected items have been scanned; no threats found."
             )
         }
     }
@@ -877,19 +877,19 @@ final class ThreatStore: ObservableObject {
             .filter { FileManager.default.fileExists(atPath: $0.path) }
             .map(\.path)
         runCommand(
-            title: "Kapsamlı tarama",
+            title: "Thorough screening",
             executable: scriptsDirectory.appendingPathComponent("scan-selection.sh"),
             arguments: paths,
-            successMessage: "Kapsamlı tarama tamamlandı; tehdit bulunmadı."
+            successMessage: "Thorough scan complete; no threats found."
         )
     }
 
     func updateSignatures() {
         runCommand(
-            title: "Virüs imzalarını güncelleme",
+            title: "Updating virus signatures",
             executable: scriptsDirectory.appendingPathComponent("update-clamav.sh"),
             arguments: [],
-            successMessage: "Virüs imzaları başarıyla güncellendi."
+            successMessage: "Virus signatures updated successfully."
         )
     }
 
@@ -911,7 +911,7 @@ final class ThreatStore: ObservableObject {
             } catch let error as SecureQuarantineError {
                 return error.localizedDescription
             } catch {
-                return "Karantina işlemi güvenli biçimde tamamlanamadı. Lütfen yeniden dene."
+                return "The quarantine process could not be completed safely. Please try again."
             }
         }.value
         refresh()
@@ -922,7 +922,7 @@ final class ThreatStore: ObservableObject {
         guard item.isActionable else {
             return item.isPreparing
                 ? SecureQuarantineError.incompleteOperation.localizedDescription
-                : "Karantinadaki dosya bulunamadı."
+                : "File in quarantine not found."
         }
         let metadataURL = item.metadataURL
         let expectedID = item.id
@@ -938,7 +938,7 @@ final class ThreatStore: ObservableObject {
                 )
                 return nil as String?
             } catch {
-                return "Geri yükleme başarısız: \(error.localizedDescription)"
+                return "Restore failed: \(error.localizedDescription)"
             }
         }.value
         refresh()
@@ -949,7 +949,7 @@ final class ThreatStore: ObservableObject {
         guard item.isActionable else {
             return item.isPreparing
                 ? SecureQuarantineError.incompleteOperation.localizedDescription
-                : "Karantinadaki dosya bulunamadı."
+                : "File in quarantine not found."
         }
         let metadataURL = item.metadataURL
         let expectedID = item.id
@@ -965,7 +965,7 @@ final class ThreatStore: ObservableObject {
                 )
                 return nil as String?
             } catch {
-                return "Kalıcı silme başarısız: \(error.localizedDescription)"
+                return "Permanent deletion failed: \(error.localizedDescription)"
             }
         }.value
         refresh()
@@ -974,11 +974,11 @@ final class ThreatStore: ObservableObject {
 
     private func runCommand(title: String, executable: URL, arguments: [String], successMessage: String) {
         guard !isAnyScanRunning else {
-            commandResult = "Önce çalışan komutun tamamlanmasını bekle."
+            commandResult = "Wait for the running command to complete first."
             return
         }
         guard FileManager.default.isExecutableFile(atPath: executable.path) else {
-            commandResult = "Komut dosyası bulunamadı. Otomasyonu yeniden kur."
+            commandResult = "Script not found. Reinstall automation."
             return
         }
 
@@ -1000,7 +1000,7 @@ final class ThreatStore: ObservableObject {
             try? writeHandle.close()
         } catch {
             isCommandRunning = false
-            commandResult = "Başlatılamadı: \(error.localizedDescription)"
+            commandResult = "Could not start: \(error.localizedDescription)"
             return
         }
 
@@ -1018,12 +1018,12 @@ final class ThreatStore: ObservableObject {
                 case 0:
                     self.commandResult = successMessage
                 case 1:
-                    self.commandResult = "\(title) tamamlandı; tehdit bulundu. Tehditler bölümünü kontrol et."
+                    self.commandResult = "\(title) completed; a threat was found. Check the Threats section."
                 case 75:
-                    self.commandResult = "Başka bir tarama zaten çalışıyor."
+                    self.commandResult = "Another scan is already running."
                 default:
                     self.commandResult = outputText.isEmpty
-                        ? "\(title) tamamlanamadı (kod \(status))."
+                        ? "\(title) failed (code \(status))."
                         : outputText
                 }
                 self.refresh()
@@ -2576,8 +2576,8 @@ final class ThreatStore: ObservableObject {
     func chooseVirusTotalFile() {
         guard !isVirusTotalManualScanRunning else { return }
         let panel = NSOpenPanel()
-        panel.title = "VirusTotal'da hash sorgusu yapılacak dosyayı seç"
-        panel.prompt = "Hash Sorgula"
+        panel.title = "Select the file to hash in VirusTotal"
+        panel.prompt = "Check Hash"
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = false
@@ -2623,10 +2623,10 @@ final class ThreatStore: ObservableObject {
                 ?? Date()
             return .legacy(
                 startedAt: start,
-                title: url.lastPathComponent.hasPrefix("selection-") ? "Devam eden seçili öğe taraması" : "Devam eden otomatik tarama"
+                title: url.lastPathComponent.hasPrefix("selection-") ? "Selected item scan in progress" : "Automatic scan in progress"
             )
         }
-        return .legacy(startedAt: Date(), title: "Devam eden ClamAV taraması")
+        return .legacy(startedAt: Date(), title: "Ongoing ClamAV scan")
     }
 
     nonisolated private func parseLegacyScanStart(in text: String) -> Date? {
@@ -2643,7 +2643,7 @@ final class ThreatStore: ObservableObject {
         guard let request = pendingVirusTotalUpload else { return }
         pendingVirusTotalUpload = nil
         guard FileManager.default.fileExists(atPath: request.fileURL.path) else {
-            virusTotalManualMessage = "Dosya artık belirtilen konumda bulunmuyor."
+            virusTotalManualMessage = "The file no longer exists in the specified location."
             return
         }
         runVirusTotalFile(
@@ -2656,7 +2656,7 @@ final class ThreatStore: ObservableObject {
 
     func cancelVirusTotalUpload() {
         pendingVirusTotalUpload = nil
-        virusTotalManualMessage = "Dosya VirusTotal'a yüklenmedi."
+        virusTotalManualMessage = "The file was not uploaded to VirusTotal."
     }
 
     private func runVirusTotalFile(
@@ -2666,19 +2666,19 @@ final class ThreatStore: ObservableObject {
         expectedSHA256: String? = nil
     ) {
         guard FileManager.default.isReadableFile(atPath: file.path) else {
-            virusTotalManualMessage = "Seçilen dosya okunamıyor."
+            virusTotalManualMessage = "The selected file cannot be read."
             return
         }
         guard FileManager.default.fileExists(atPath: virusTotalScriptURL.path) else {
-            virusTotalManualMessage = "VirusTotal tarama bileşeni bulunamadı. Otomasyonu yeniden kur."
+            virusTotalManualMessage = "VirusTotal scan component not found. Reinstall automation."
             return
         }
         guard let python = Self.compatiblePythonURL() else {
-            virusTotalManualMessage = "Uyumlu Python bulunamadı. VirusTotal bileşenini yeniden kur."
+            virusTotalManualMessage = "No compatible Python found. Reinstall the VirusTotal component."
             return
         }
         if forceUpload && (expectedSHA256?.isEmpty ?? true) {
-            virusTotalManualMessage = "Dosyanın güvenli hash doğrulaması yapılamadı; yükleme başlatılmadı."
+            virusTotalManualMessage = "Secure hash validation of the file failed; upload not started."
             return
         }
 
@@ -2699,15 +2699,15 @@ final class ThreatStore: ObservableObject {
 
         isVirusTotalManualScanRunning = true
         virusTotalManualMessage = hashOnly
-            ? "Dosyanın hash bilgisi VirusTotal'da sorgulanıyor…"
-            : "Dosya VirusTotal'a yükleniyor ve analiz ediliyor…"
+            ? "Querying the hash information of the file in VirusTotal…"
+            : "Uploading and analyzing file to VirusTotal…"
 
         do {
             try process.run()
             try? writeHandle.close()
         } catch {
             isVirusTotalManualScanRunning = false
-            virusTotalManualMessage = "VirusTotal sorgusu başlatılamadı."
+            virusTotalManualMessage = "Unable to start VirusTotal query."
             return
         }
 
@@ -2719,23 +2719,23 @@ final class ThreatStore: ObservableObject {
                 guard let self else { return }
                 self.isVirusTotalManualScanRunning = false
                 guard let result = self.decodeVirusTotalProcessOutput(data) else {
-                    self.virusTotalManualMessage = "VirusTotal sorgusu tamamlanamadı. Servis durumunu kontrol et."
+                    self.virusTotalManualMessage = "Unable to complete VirusTotal query. Check service status."
                     return
                 }
 
                 if process.terminationStatus != 0 || result.status == "error" {
-                    self.virusTotalManualMessage = result.errorMessage ?? "VirusTotal sorgusu tamamlanamadı. Servis durumunu kontrol et."
+                    self.virusTotalManualMessage = result.errorMessage ?? "Unable to complete VirusTotal query. Check service status."
                     self.refresh()
                     return
                 }
 
                 if hashOnly && result.isUnknown {
                     guard !result.sha256.isEmpty else {
-                        self.virusTotalManualMessage = "Dosyanın hash bilgisi doğrulanamadı; yükleme onayı sunulmadı."
+                        self.virusTotalManualMessage = "The hash information of the file could not be verified; no upload confirmation was submitted."
                         return
                     }
                     self.pendingVirusTotalUpload = VirusTotalUploadRequest(fileURL: file, sha256: result.sha256)
-                    self.virusTotalManualMessage = "Bu dosya VirusTotal'da bilinmiyor. Onay verirsen analiz için bir kopyası yüklenecek."
+                    self.virusTotalManualMessage = "This file is unknown in VirusTotal. If you approve, a copy will be uploaded for analysis."
                 } else {
                     self.virusTotalManualMessage = self.manualVirusTotalMessage(for: result)
                     self.refresh()
@@ -2767,14 +2767,14 @@ final class ThreatStore: ObservableObject {
     private func manualVirusTotalMessage(for result: VirusTotalResult) -> String {
         if result.riskCount > 0 {
             if result.quarantinedTo != nil {
-                return "\(result.fileName) için \(result.riskCount) uyarı bulundu ve dosya karantinaya taşındı."
+                return "\(result.fileName) için \(result.riskCount) warnings found; file moved to quarantine."
             }
-            return "\(result.fileName) için \(result.riskCount) güvenlik motoru uyarı verdi."
+            return "\(result.fileName) için \(result.riskCount) security engines reported warnings."
         }
         if result.isUnknown {
-            return "Dosya VirusTotal'da hâlâ bilinmiyor; yükleme sonucu daha sonra görünebilir."
+            return "The file is still unknown in VirusTotal; the upload result may appear later."
         }
-        return "\(result.fileName) için VirusTotal'da tehdit uyarısı bulunmadı."
+        return "\(result.fileName) has no VirusTotal threat warnings."
     }
 
     private nonisolated static func compatiblePythonURL() -> URL? {
@@ -2880,18 +2880,18 @@ final class ThreatStore: ObservableObject {
         let gatekeeper: ProtectionLayerStatus
         if gatekeeperOutput.contains("disabled") {
             gatekeeper = settingLayer(
-                id: "gatekeeper", name: "Uygulama denetimi", icon: "checkmark.seal.fill",
-                status: "Off", detail: "İndirilen uygulamaların güvenilirliği şu anda denetlenmiyor.", health: .attention
+                id: "gatekeeper", name: "Application security", icon: "checkmark.seal.fill",
+                status: "Off", detail: "The reliability of downloaded apps is currently not being checked.", health: .attention
             )
         } else if gatekeeperOutput.contains("enabled") {
             gatekeeper = settingLayer(
-                id: "gatekeeper", name: "Uygulama denetimi", icon: "checkmark.seal.fill",
-                status: "On", detail: "İndirilen uygulamaların güvenilirliği denetleniyor.", health: .active
+                id: "gatekeeper", name: "Application security", icon: "checkmark.seal.fill",
+                status: "On", detail: "Checking the reliability of downloaded applications.", health: .active
             )
         } else {
             gatekeeper = settingLayer(
-                id: "gatekeeper", name: "Uygulama denetimi", icon: "checkmark.seal.fill",
-                status: "Durum okunamadı", detail: "Bu korumanın durumunu Sistem Ayarları'ndan kontrol et.", health: .attention
+                id: "gatekeeper", name: "Application security", icon: "checkmark.seal.fill",
+                status: "Failed to read status", detail: "Check the status of this protection in System Settings.", health: .attention
             )
         }
 
@@ -2900,18 +2900,18 @@ final class ThreatStore: ObservableObject {
         ).output.lowercased()
         let firewallOn = firewallOutput.contains("enabled") || firewallOutput.contains("state = 1") || firewallOutput.contains("state = 2")
         let firewall = settingLayer(
-            id: "firewall", name: "Güvenlik duvarı", icon: "network.badge.shield.half.filled",
+            id: "firewall", name: "Firewall", icon: "network.badge.shield.half.filled",
             status: firewallOn ? "On" : "Off",
-            detail: firewallOn ? "İstenmeyen gelen bağlantılar sınırlandırılıyor." : "Gelen bağlantı koruması şu anda kapalı.",
+            detail: firewallOn ? "Restricting unwanted inbound connections." : "Incoming connection protection is currently turned off.",
             health: firewallOn ? .active : .attention
         )
 
         let fileVaultOutput = runReadOnly("/usr/bin/fdesetup", ["status"]).output.lowercased()
         let fileVaultOn = fileVaultOutput.contains("filevault is on")
         let fileVault = settingLayer(
-            id: "filevault", name: "Disk şifreleme", icon: "lock.fill",
+            id: "filevault", name: "Disk encryption", icon: "lock.fill",
             status: fileVaultOn ? "On" : "Off",
-            detail: fileVaultOn ? "Mac'teki veriler disk şifreleme ile korunuyor." : "Diskteki veriler şu anda şifreleme ile korunmuyor.",
+            detail: fileVaultOn ? "Data on a Mac is protected by disk encryption." : "The data on the disk is not currently protected by encryption.",
             health: fileVaultOn ? .active : .attention
         )
 
@@ -2925,9 +2925,9 @@ final class ThreatStore: ObservableObject {
         let lulu = toolLayer(
             id: "lulu", name: "LuLu", icon: "arrow.up.right.circle.fill",
             installed: luluInstalled, active: luluActive,
-            activeDetail: "Uygulamaların dışarıya bağlantıları denetleniyor.",
-            inactiveDetail: "Dış bağlantı koruması kurulu ancak çalışmıyor.",
-            missingDetail: "Dış bağlantı koruması henüz kurulu değil."
+            activeDetail: "Checking the external connections of applications.",
+            inactiveDetail: "External connection protection is installed but does not work.",
+            missingDetail: "External link protection is not yet installed."
         )
 
         let santaCLIPaths = [
@@ -2950,40 +2950,40 @@ final class ThreatStore: ObservableObject {
             case "monitor":
                 santa = settingLayer(
                     id: "santa", name: "Santa", icon: "hand.raised.square.fill",
-                    status: "Sessiz izleme",
-                    detail: "Bilinmeyen programlara izin verir ve olayları kaydeder; bozuk imzalar engellenir.",
+                    status: "Silent monitoring",
+                    detail: "Allows unknown programs and records events; corrupted signatures are blocked.",
                     health: .active
                 )
             case "standalone":
                 santa = settingLayer(
                     id: "santa", name: "Santa", icon: "hand.raised.square.fill",
-                    status: "Onay isteyen mod",
-                    detail: "Bilinmeyen programlar için kullanıcı kararı ister ve olayları kaydeder.",
+                    status: "Approval mode",
+                    detail: "Asks the user about unknown programs and records events.",
                     health: .active
                 )
             case "lockdown":
                 santa = settingLayer(
                     id: "santa", name: "Santa", icon: "hand.raised.square.fill",
-                    status: "Sıkı engelleme",
-                    detail: "Yalnız izin verilen programların çalışmasına izin verir; bilinmeyen programları engeller.",
+                    status: "Strict blocking",
+                    detail: "Allows only approved programs to run; blocks unknown programs.",
                     health: .active
                 )
             default:
                 santa = toolLayer(
                     id: "santa", name: "Santa", icon: "hand.raised.square.fill",
                     installed: santaInstalled, active: santaActive,
-                    activeDetail: "Programlar çalıştırılmadan önce güvenlik denetiminden geçiyor.",
-                    inactiveDetail: "Çalıştırma denetimi kurulu ancak yanıt vermiyor.",
-                    missingDetail: "Program çalıştırma denetimi henüz kurulu değil."
+                    activeDetail: "Programs are security audited before they are run.",
+                    inactiveDetail: "Operation control is installed but not responding.",
+                    missingDetail: "Program execution check is not installed yet."
                 )
             }
         } else {
             santa = toolLayer(
                 id: "santa", name: "Santa", icon: "hand.raised.square.fill",
                 installed: santaInstalled, active: santaActive,
-                activeDetail: "Programlar çalıştırılmadan önce güvenlik denetiminden geçiyor.",
-                inactiveDetail: "Çalıştırma denetimi kurulu ancak yanıt vermiyor.",
-                missingDetail: "Program çalıştırma denetimi henüz kurulu değil."
+                activeDetail: "Programs are security audited before they are run.",
+                inactiveDetail: "Operation control is installed but not responding.",
+                missingDetail: "Program execution check is not installed yet."
             )
         }
 
@@ -2996,9 +2996,9 @@ final class ThreatStore: ObservableObject {
         let blockBlock = toolLayer(
             id: "blockblock", name: "BlockBlock", icon: "bolt.shield.fill",
             installed: blockBlockInstalled, active: blockBlockActive,
-            activeDetail: "Şüpheli kalıcılık girişimleri izleniyor.",
-            inactiveDetail: "Kalıcılık koruması kurulu ancak çalışmıyor.",
-            missingDetail: "Kalıcılık koruması henüz kurulu değil."
+            activeDetail: "Suspicious persistence attempts are monitored.",
+            inactiveDetail: "Persistence protection installed but not working.",
+            missingDetail: "Permanence protection is not yet installed."
         )
 
         let ransomWhereInstalled = fileManager.fileExists(atPath: "/Applications/RansomWhere Helper.app")
@@ -3009,9 +3009,9 @@ final class ThreatStore: ObservableObject {
         let ransomWhere = toolLayer(
             id: "ransomwhere", name: "RansomWhere?", icon: "lock.shield.fill",
             installed: ransomWhereInstalled, active: ransomWhereActive,
-            activeDetail: "Şüpheli toplu dosya şifreleme davranışı izleniyor.",
-            inactiveDetail: "Fidye yazılımı koruması kurulu ancak çalışmıyor.",
-            missingDetail: "Fidye yazılımı davranış koruması henüz kurulu değil."
+            activeDetail: "Monitoring suspicious bulk file encryption behavior.",
+            inactiveDetail: "Ransomware protection installed but not working.",
+            missingDetail: "Ransomware behavior protection is not yet installed."
         )
 
         return [gatekeeper, firewall, fileVault, lulu, santa, blockBlock, ransomWhere]
@@ -3541,7 +3541,7 @@ final class ThreatStore: ObservableObject {
                 }
             }
 
-            print("TEST OK: app staging race, metadata state, restore ve delete bütünlük kontrolleri güvenli.")
+            print("TEST OK: app staging race, metadata state, restore and delete integrity checks are secure.")
             return 0
         } catch {
             FileHandle.standardError.write(Data("TEST HATA: \(error.localizedDescription)\n".utf8))
@@ -3891,7 +3891,7 @@ struct ContentView: View {
                     VStack(alignment: .leading, spacing: 1) {
                         Text(store.isRealtimeProtectionActive ? "Koruma aktif" : "Dikkat gerekiyor")
                             .font(.caption.bold())
-                        Text("Son güncelleme \(store.lastRefresh.formatted(date: .omitted, time: .shortened))")
+                        Text("Last updated \(store.lastRefresh.formatted(date: .omitted, time: .shortened))")
                             .font(.caption2)
                             .foregroundStyle(.tertiary)
                     }
@@ -4102,21 +4102,21 @@ struct OverviewView: View {
     }
 
     private var bannerTitle: String {
-        if !activeThreats.isEmpty { return "Dikkat gerektiren tehdit var" }
-        return store.isRealtimeProtectionActive ? "Canlı koruma açık" : "Canlı koruma çalışmıyor"
+        if !activeThreats.isEmpty { return "A threat requires attention" }
+        return store.isRealtimeProtectionActive ? "Live protection is on" : "Live protection not working"
     }
 
     private var bannerMessage: String {
         if !activeThreats.isEmpty {
-            return "\(activeThreats.count) tehdit dosyası hâlâ bilgisayarda bulunuyor."
+            return "\(activeThreats.count) threat files remain on the computer."
         }
         if store.isRealtimeProtectionActive {
-            return "Yeni ve değişen dosyalar otomatik olarak kontrol ediliyor."
+            return "New and changed files are checked automatically."
         }
         if store.realtimeStatus == nil {
-            return "Koruma henüz durum bilgisi göndermedi. Canlı Koruma bölümünü kontrol et."
+            return "Protection hasn't sent status yet. Check the Live Protection section."
         }
-        return "Koruma bir süredir yanıt vermiyor. Yeniden başlatmayı deneyebilirsin."
+        return "Protection has been unresponsive for some time. You can try restarting."
     }
 
     private var virusTotalServiceStatus: String {
@@ -4126,12 +4126,12 @@ struct OverviewView: View {
 
     private var virusTotalServiceDetail: String {
         if store.virusTotalStatus?.apiKeyConfigured == false {
-            return "Hash sorguları için VirusTotal API anahtarı bekleniyor."
+            return "Waiting for VirusTotal API key for hash queries."
         }
         if store.virusTotalStatus?.lastResult == "retrying" {
-            return "Geçici erişim sorunu var; bekleyen dosyalar otomatik olarak yeniden denenecek."
+            return "There is a temporary access problem; pending files will be automatically retried."
         }
-        return "İndirilen dosyaların hash bilgisini ikinci görüş olarak kontrol eder."
+        return "Checks the hash information of the downloaded files as a second opinion."
     }
 
     private var virusTotalServiceColor: Color {
@@ -4189,7 +4189,7 @@ struct DashboardServiceCard: View {
                         Text("Starting").font(.caption)
                     }
                 } else {
-                    Label("Yeniden başlat", systemImage: "arrow.clockwise")
+                    Label("Restart", systemImage: "arrow.clockwise")
                         .font(.caption)
                 }
             }
@@ -4203,10 +4203,10 @@ struct DashboardServiceCard: View {
 }
 
 private enum RealtimeEventFilter: String, CaseIterable, Identifiable {
-    case all = "Tümü"
-    case clean = "Temiz"
-    case threats = "Tehdit"
-    case problems = "Sorun"
+    case all = "All"
+    case clean = "Clean"
+    case threats = "Threat"
+    case problems = "Issue"
 
     var id: String { rawValue }
 
@@ -4250,23 +4250,23 @@ struct LiveProtectionView: View {
     }
 
     private var statusTitle: String {
-        store.isRealtimeProtectionActive ? "Canlı koruma açık" : "Canlı koruma yanıt vermiyor"
+        store.isRealtimeProtectionActive ? "Live protection is on" : "Live protection not responding"
     }
 
     private var statusDetail: String {
         guard let status = store.realtimeStatus else {
-            return "Koruma henüz durum bilgisi göndermedi. Yeniden başlatmayı deneyebilirsin."
+            return "Protection hasn't sent status yet. You can try restarting."
         }
         if !status.running {
-            return "Dosya izleme hizmeti şu anda çalışmıyor."
+            return "The file tracking service is currently not running."
         }
         if !status.daemonConnected {
-            return "Dosyalar izleniyor ancak tarama motoruna ulaşılamıyor."
+            return "The files are being watched but the scan engine cannot be reached."
         }
         if !store.isRealtimeProtectionActive {
-            return "Koruma bir süredir yeni durum bilgisi göndermedi."
+            return "Protection hasn't sent new status information in a while."
         }
-        return "Yeni veya değişen dosyalar kaydedildikleri anda otomatik olarak kontrol ediliyor."
+        return "New or changed files are automatically checked as soon as they are saved."
     }
 
     var body: some View {
@@ -4275,7 +4275,7 @@ struct LiveProtectionView: View {
                 HStack(alignment: .top) {
                     SecurityPageHeader(
                         title: "Live Protection",
-                        subtitle: "Yeni dosyaları kontrol eder ve bulunan tehditleri güvenli alana taşır.",
+                        subtitle: "Checks for new files and moves found threats to the secure area.",
                         icon: "shield.checkered",
                         tint: statusColor
                     )
@@ -4329,8 +4329,8 @@ struct LiveProtectionView: View {
                     HStack(spacing: 10) {
                         ProgressView().controlSize(.small)
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("Telafi taraması sürüyor").font(.subheadline.bold())
-                            Text("Servis kapalıyken veya olay akışı kesilirken kaçmış olabilecek yakın tarihli dosyalar sıraya alınıyor.")
+                            Text("Recovery scan in progress").font(.subheadline.bold())
+                            Text("Recent files that may have been missed while the service was stopped or the event stream was interrupted are being queued.")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
@@ -4380,7 +4380,7 @@ struct LiveProtectionView: View {
                     )
                     MetricCard(
                         title: "Tarama motoru",
-                        value: store.realtimeStatus?.daemonConnected == true ? "Ready" : "Bağlantı yok",
+                        value: store.realtimeStatus?.daemonConnected == true ? "Ready" : "Not connected",
                         icon: "gearshape.2.fill",
                         color: store.realtimeStatus?.daemonConnected == true ? .green : .orange
                     )
@@ -4388,7 +4388,7 @@ struct LiveProtectionView: View {
 
                 watchedLocations
 
-                SecuritySectionHeader("Protection layers", subtitle: "Mac'in yerleşik güvenliği ve ek koruma araçları") {
+                SecuritySectionHeader("Protection layers", subtitle: "Mac's built-in security and additional protection tools") {
                     if store.isCheckingProtectionLayers {
                         ProgressView().controlSize(.small)
                         Text("Checking")
@@ -4642,7 +4642,7 @@ struct VirusTotalView: View {
                 manualScanCard
 
                 SecuritySectionHeader("Recent VirusTotal results") {
-                    Text("Son \(min(store.virusTotalResults.count, 50)) kayıt")
+                    Text("Son \(min(store.virusTotalResults.count, 50)) records")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -4664,8 +4664,8 @@ struct VirusTotalView: View {
                 }
 
                 Text(store.virusTotalStatus?.autoUploadQuarantine == true
-                     ? "Karantinadaki dosyaların önce SHA-256 değeri sorgulanır; VirusTotal'da bilinmiyorsa dosyanın bir kopyası otomatik gönderilir. Normal indirilen bilinmeyen dosyalar otomatik yüklenmez."
-                     : "Hash sorgusu dosyanın kendisini göndermez. Karantina dahil hiçbir dosya otomatik yüklenmez; yalnız açıkça onaylarsan dosya gönderilir.")
+                     ? "Files in quarantine are first queried for SHA-256; if unknown in VirusTotal, a copy of the file is automatically sent. Normally downloaded unknown files are not automatically uploaded."
+                     : "The hash query does not send the file itself. No files, including quarantine, are automatically uploaded; only if you explicitly approve, the file will be sent.")
                     .font(.caption)
                     .foregroundStyle(.tertiary)
             }
@@ -4775,7 +4775,7 @@ struct VirusTotalResultRow: View {
                         .font(.subheadline.bold())
                         .foregroundStyle(result.statusColor)
                     if result.riskCount > 0 {
-                        Text("• \(result.malicious) zararlı, \(result.suspicious) şüpheli")
+                        Text("• \(result.malicious) malicious, \(result.suspicious) suspicious")
                             .font(.subheadline)
                             .foregroundStyle(.red)
                     }
@@ -5063,7 +5063,7 @@ struct ThreatRow: View {
                 Text(threat.exists ? "File exists" : "File removed")
                     .font(.caption.bold())
                     .foregroundStyle(threat.exists ? .red : .green)
-                Text("Son görülme: \(threat.lastSeen.formatted(date: .abbreviated, time: .shortened))")
+                Text("Last seen: \(threat.lastSeen.formatted(date: .abbreviated, time: .shortened))")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Text("\(threat.detectionCount) kez bulundu")
@@ -5103,7 +5103,7 @@ struct ActiveScanProgressCard: View {
     }
 
     private var elapsedText: String {
-        "Geçen: \(formatDuration(max(0, Int(Date().timeIntervalSince(status.startedAt)))))"
+        "Elapsed: \(formatDuration(max(0, Int(Date().timeIntervalSince(status.startedAt)))))"
     }
 
     private var remainingText: String {
@@ -5165,7 +5165,7 @@ struct ActiveScanProgressCard: View {
                             .foregroundStyle(.red)
                     }
                     if status.errorCount > 0 {
-                        Label("\(status.errorCount) erişim uyarısı", systemImage: "exclamationmark.triangle.fill")
+                        Label("\(status.errorCount) access warnings", systemImage: "exclamationmark.triangle.fill")
                             .foregroundStyle(.orange)
                     }
                 }
@@ -5173,13 +5173,13 @@ struct ActiveScanProgressCard: View {
             }
 
             if let excluded = status.excludedCount, excluded > 0 {
-                Label("\(excluded.formatted()) yinelenen veya gereksiz klasör atlandı", systemImage: "bolt.fill")
+                Label("\(excluded.formatted()) duplicate or excluded folders skipped", systemImage: "bolt.fill")
                     .font(.caption)
                     .foregroundStyle(.green)
             }
 
             if let path = status.currentPath, !path.isEmpty {
-                Text("Şu anda: \(path)")
+                Text("Current: \(path)")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
                     .lineLimit(1)
@@ -5198,7 +5198,7 @@ struct ActiveScanProgressCard: View {
         let days = seconds / 86_400
         let hours = (seconds % 86_400) / 3_600
         let minutes = (seconds % 3_600) / 60
-        if days > 0 { return "\(days) gün \(hours) sa" }
+        if days > 0 { return "\(days) days \(hours) hours" }
         if hours > 0 { return "\(hours) sa \(minutes) dk" }
         if minutes > 0 { return "\(minutes) dk" }
         return "\(max(0, seconds)) sn"
@@ -5222,7 +5222,7 @@ struct CommandCenterView: View {
                 if let progress = store.scanProgressStatus, progress.running {
                     ActiveScanProgressCard(status: progress)
                 } else if store.isCommandRunning {
-                    ProgressView("\(store.activeCommand) başlatılıyor…")
+                    ProgressView("\(store.activeCommand) starting…")
                         .padding(16)
                 }
 
@@ -5403,7 +5403,7 @@ struct QuarantineView: View {
                                             .font(.caption)
                                             .foregroundStyle(.orange)
                                     }
-                                    Text("Özgün konum: \(item.metadata.originalPath)")
+                                    Text("Original location: \(item.metadata.originalPath)")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                         .lineLimit(1)
@@ -5524,7 +5524,7 @@ struct ScansView: View {
                 TableColumn("Taranan") { scan in Text(scan.scannedFiles.formatted()) }
                     .width(min: 80, ideal: 90)
 
-                TableColumn("Tehdit") { scan in Text(scan.infectedFiles.formatted()) }
+                TableColumn("Threat") { scan in Text(scan.infectedFiles.formatted()) }
                     .width(min: 65, ideal: 75)
 
                 TableColumn("Log") { scan in
