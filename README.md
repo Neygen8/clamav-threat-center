@@ -1,78 +1,28 @@
-# ClamAV canlı koruma (macOS)
+# ClamAV live protection for macOS
 
-Bu proje ClamAV'ı sürekli çalışan, yerel bir koruma katmanı hâline getirir.
-Kurulumdan sonra altı kullanıcı görevi oturum açıldığında otomatik başlar:
+This project combines ClamAV scanning, live file monitoring, a quarantine and VirusTotal second opinions in a macOS menu-bar control panel.
 
-- `clamd`, virüs veritabanını bellekte tutarak dosyaları hızlı tarar.
-- Canlı izleyici `Desktop` ve `Downloads` altındaki yeni veya değişen dosyaları
-  algılar. Haricî diskler yalnızca açıkça seçildiğinde taranır; bu, pildeyken
-  gereksiz disk erişimini önler.
-- Dosyanın yazılması bitince tarama yapılır; aynı dosya olayları birleştirilir ve
-  taramalar sistem yükünü sınırlamak için sırayla çalıştırılır.
-- Servis yeniden başlatıldığında geçmiş dosyalar yeniden sıraya alınmaz; yalnız
-  yeni değişiklikler izlenir. Olay akışı gerçekten kesilirse sınırlı telafi
-  taraması devreye girer.
-- Disk imajları ve arşivler (`.dmg`, `.iso`, `.zip`, `.jar`, `.7z`, `.rar` ve
-  benzerleri) canlı taramada açılmaz; Gatekeeper ve VirusTotal hash kontrolü
-  devam eder. Bunları gerekirse Finder'daki **ClamAV ile Tara** eylemiyle
-  isteğe bağlı derin tarayabilirsin.
-- Bulunan tehdit, izinleri yalnızca kullanıcıya açık olan karantinaya otomatik
-  taşınır. Uyumlu JSON bilgisi sayesinde Tehdit Merkezi'nden görülebilir ve geri
-  yüklenebilir.
-- Virüs imzaları her 6 saatte bir güncellenir ve çalışan `clamd` motoruna yeniden
-  yüklenir.
-- Ek olarak `Desktop` ve `Downloads` her gün 19:00'da tam taranır.
-- VirusTotal ikinci görüş hizmeti ayrı bir menü çubuğu uygulaması açmadan
-  `Downloads` klasörünü izler ve sonuçlarını aynı kontrol paneline gönderir.
-- Birleşik Tehdit Merkezi arayüzü sağ üst menü çubuğunda kalkan simgesiyle
-  başlar; ClamAV, canlı koruma ve VirusTotal durumu buradan görülüp panel açılabilir.
+## Protection
 
-Finder'da bir dosya veya klasöre sağ tıklayıp **Hızlı Eylemler > ClamAV ile Tara**
-seçeneğiyle isteğe bağlı tarama yapılabilir. **ClamAV Tehdit Merkezi** içindeki
-**Kontrol Paneli**, ClamAV motoru, canlı izleyici, VirusTotal ve diğer koruma
-katmanlarını tek yerde gösterir. Yalnız bu projeye ait servisler panelden güvenli
-biçimde yeniden başlatılır; üçüncü taraf korumaların kendi ayar uygulamaları açılır.
-Uygulama `~/Applications` içine kurulur.
-Menüdeki **Arayüzden Çık** yalnız görsel uygulamayı kapatır; koruma
-servisleri ayrı arka plan görevleri olarak çalışmaya devam eder.
+- `clamd` keeps the signature database in memory for scanning.
+- The live monitor watches new and changed files on the Desktop and in Downloads. External drives are scanned when explicitly selected.
+- Events are combined and scans run sequentially to limit system load. Existing files are not automatically requeued after a service restart; a limited recovery scan handles an interrupted event stream.
+- Archives and disk images, including `.dmg`, `.iso`, `.zip`, `.jar`, `.7z` and `.rar`, are excluded from live scanning. Use the Finder quick action for an on-demand scan. Gatekeeper and VirusTotal hash checks continue separately.
+- Detected threats are moved to a user-only quarantine and can be inspected or restored in the Threat Center.
+- The bundled schedule updates signatures every six hours and scans Desktop and Downloads daily at 19:00.
+- The VirusTotal service watches Downloads and reports to the same panel. It checks SHA-256 hashes first; file contents are uploaded only with explicit approval or when automatic quarantine analysis is enabled in the user's configuration.
 
-> Bu izleyici dosya diske yazıldıktan hemen sonra tarar. Apple Endpoint Security
-> yetkisi kullanan Santa gibi bir çalıştırma engelleyicinin yerini tutmaz ve her
-> dosyanın açılmadan önce durdurulacağını garanti etmez.
+The application is installed in `~/Applications` and appears in the menu bar. Closing the interface leaves the separate background services running. The Finder quick action currently appears as **ClamAV ile Tara**.
 
-## Savunma katmanları
+> Live monitoring scans files after they are written. It does not replace an Endpoint Security execution blocker and cannot guarantee that every file is stopped before it is opened.
 
-Tehdit Merkezi aşağıdaki tamamlayıcı katmanların sağlık durumunu da gösterir:
+## Complementary security tools
 
-- macOS Gatekeeper ve XProtect: Apple'ın uygulama güvenilirliği ve yerleşik
-  zararlı yazılım koruması.
-- Santa: program çalıştırmalarını Endpoint Security ile kaydeder. Bu kişisel Mac
-  için `config/Santa-Standalone.mobileconfig` profili artık sessiz **Monitor**
-  modunu kullanır: bilinmeyen programlarda sürekli onay istemez, olayları kaydeder
-  ve bozuk imzaları engeller. Gatekeeper, XProtect, ClamAV ve davranış korumaları
-  aktif kalmalıdır.
-- BlockBlock: LaunchAgent ve benzeri kalıcılık değişikliklerini engeller. Santa
-  etkin olduğunda BlockBlock'un ek Notarization/Script yürütme engelleri aynı
-  işi iki kez yapmaması için kapalı tutulmalıdır.
-- RansomWhere?: hızlı toplu şifreleme davranışını durdurur.
-- LuLu: uygulamaların dışarıya bağlantılarını denetler.
-- VirusTotal: görünmez arka plan servisi önce yalnız SHA-256 sorgular. Normal
-  indirilen veya karantinaya alınan bilinmeyen dosyaların içeriği otomatik
-  yüklenmez. Dosya yükleme yalnız açık onayla ya da kişisel config dosyasından
-  etkinleştirilen karantina otomatik analiziyle yapılır. İki motor aynı dosyayı
-  eşzamanlı taşımaz.
+The panel also displays the status of macOS Gatekeeper and XProtect, Santa, BlockBlock, RansomWhere? and LuLu. These tools are separate products and must be installed and configured independently. The included `config/Santa-Standalone.mobileconfig` uses Santa's Monitor mode. The verified installer hashes and signature records are in `config/verified-installers.txt`.
 
-ClamAV içerik taraması ve ortak karantinanın sahibidir; VirusTotal ikinci görüş,
-Santa çalıştırma görünürlüğü, BlockBlock kalıcılık, RansomWhere? toplu şifreleme
-ve LuLu dış ağ bağlantısı katmanıdır. Bu görev ayrımı çakışan uyarıları azaltır.
+## Installation and management
 
-Doğrulanmış resmî Santa, BlockBlock ve RansomWhere kurucuları
-`~/Downloads/Mac Security Installers` klasöründe tutulur. Hash ve geliştirici
-imza kaydı `config/verified-installers.txt` dosyasındadır.
-
-## Kurulum ve yönetim
-
-ClamAV Homebrew ile kurulu ve imza veritabanı indirilmiş olmalıdır. Ardından:
+Install ClamAV with Homebrew and download its signature database first. Then run:
 
 ```sh
 ./install.sh install
@@ -82,50 +32,22 @@ ClamAV Homebrew ile kurulu ve imza veritabanı indirilmiş olmalıdır. Ardında
 ./install.sh uninstall
 ```
 
-`uninstall` çalışan görevleri ve Finder hızlı eylemini kaldırır; karantina,
-ayarlar ve günlükler veri kaybını önlemek için korunur.
+Uninstall removes the project's running jobs and Finder quick action but retains quarantine, settings and logs. After a successful migration, the former `VirusTotal İzleyici.app` and its LaunchAgent are moved into a dated, user-only migration backup. The existing VirusTotal API key remains at `~/.config/vt-download-watcher/.env`.
 
-İlk birleşik kurulum başarılı olduktan sonra eski `VirusTotal İzleyici.app` ve
-LaunchAgent dosyası silinmez. Tarihli, `0700` izinli
-`~/Library/Application Support/ClamAV-Automation/Migration Backups/` klasörüne
-taşınır. Eski sonuç geçmişi yeni merkezi JSONL biçimine aktarılır; API anahtarı
-uyumluluk ve gizlilik için `~/.config/vt-download-watcher/.env` konumunda kalır.
+## Settings and logs
 
-## Ayarlar ve kayıtlar
+Under `~/Library/Application Support/ClamAV-Automation/`:
 
-- Günlük tam tarama yolları:
-  `~/Library/Application Support/ClamAV-Automation/scan-paths`
-- Canlı izleme yolları:
-  `~/Library/Application Support/ClamAV-Automation/realtime-paths`
-- Karantina:
-  `~/Library/Application Support/ClamAV-Automation/Quarantine/`
-- Canlı durum:
-  `~/Library/Application Support/ClamAV-Automation/realtime-status.json`
-- Canlı olaylar:
-  `~/Library/Logs/ClamAV-Automation/realtime-events.jsonl`
-- VirusTotal durumu:
-  `~/Library/Application Support/ClamAV-Automation/virustotal-status.json`
-- VirusTotal sonuçları:
-  `~/Library/Logs/ClamAV-Automation/virustotal-results.jsonl`
-- Devam eden taramanın yüzde, dosya sayısı ve kalan süre durumu:
-  `~/Library/Application Support/ClamAV-Automation/scan-progress.json`
-- Karantina VirusTotal tekrar-engelleme durumu:
-  `~/Library/Application Support/ClamAV-Automation/virustotal-quarantine-state.json`
-- VirusTotal gizlilik ve yükleme politikası:
-  `~/.config/vt-download-watcher/config.json`
-- Ortak karantina koordinasyon kilidi:
-  `~/Library/Application Support/ClamAV-Automation/coordination/quarantine.lock`
-- Diğer günlükler: `~/Library/Logs/ClamAV-Automation/`
+- `scan-paths`: scheduled scan paths
+- `realtime-paths`: live monitoring paths
+- `Quarantine/`: quarantined files
+- `realtime-status.json`, `virustotal-status.json`: service status
+- `scan-progress.json`: scan progress and estimated time remaining
+- `virustotal-quarantine-state.json`: quarantine VirusTotal state
+- `coordination/quarantine.lock`: shared quarantine coordination lock
 
-Yol dosyalarında her satıra mutlak bir yol veya `$HOME` ile başlayan bir yol
-yazılabilir. Değişiklikten sonra canlı görev yeniden başlatılmalıdır. Koruma
-klasörleri `0700`, hassas ayar, durum, olay ve karantina dosyaları `0600`
-izinleriyle tutulur.
+Logs and event records are stored under `~/Library/Logs/ClamAV-Automation/`. VirusTotal privacy and upload settings are stored in `~/.config/vt-download-watcher/config.json`.
 
-Uzun taramalar başlamadan önce erişilebilir dosyalar tek bir özel manifestte
-sayılır. APFS firmlink'leri aynı klasörü ikinci kez gösterse bile aygıt/inode
-kimliğiyle yalnız bir kez taranır. `/` seçildiğinde salt-okunur `/System` ve
-bağlı disklerin `/Volumes` görünümü atlanır; bağlı bir diski tam taramak için
-onu ayrıca **Dosya veya Klasör Tara** üzerinden seçmek gerekir. `.git`,
-`node_modules`, sanal Python ortamları ve kullanıcı önbellekleri de varsayılan
-olarak atlanır; yeni dosyalar canlı koruma tarafından ayrıca izlenir.
+Path files accept one absolute path or `$HOME`-relative path per line. Restart the live service after changing its paths. Sensitive files are kept with user-only permissions.
+
+Long scans build a manifest of accessible files and deduplicate APFS firmlinks by device and inode. When scanning `/`, the read-only `/System` and mounted drives under `/Volumes` are skipped; select external drives separately. Development directories and user caches are excluded by default.
