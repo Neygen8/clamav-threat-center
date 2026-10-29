@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleDevelopmentRegion</key>
+  <string>tr</string>
+  <key>CFBundleDisplayName</key>
+  <string>ClamAV Tehdit Merkezi</string>
+  <key>CFBundleExecutable</key>
+  <string>ClamAV Tehdit Merkezi</string>
+  <key>CFBundleIdentifier</key>
+  <string>com.local.clamav.threat-center</string>
+  <key>CFBundleInfoDictionaryVersion</key>
+  <string>6.0</string>
+  <key>CFBundleIconFile</key>
+  <string>ClamAVThreatCenter.icns</string>
+  <key>CFBundleName</key>
+  <string>ClamAV Tehdit Merkezi</string>
+  <key>CFBundlePackageType</key>
+  <string>APPL</string>
+  <key>CFBundleSignature</key>
+  <string>CLAV</string>
+  <key>CFBundleShortVersionString</key>
+  <string>1.0</string>
+  <key>CFBundleVersion</key>
+  <string>2</string>
+  <key>LSMinimumSystemVersion</key>
+  <string>13.0</string>
+  <key>LSApplicationCategoryType</key>
+  <string>public.app-category.utilities</string>
+  <key>NSHighResolutionCapable</key>
+  <true/>
+</dict>
+</plist>
